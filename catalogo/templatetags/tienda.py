@@ -15,18 +15,25 @@ ILUSTRACIONES = (
 )
 
 
+def dato(producto, campo):
+    """Lee un campo del producto, ya sea un diccionario (.values()) o un objeto Producto."""
+    if isinstance(producto, dict):
+        return producto.get(campo)
+    return getattr(producto, campo, None)
+
+
 @register.filter
 def ilustracion(producto):
-    if producto.get("ilustracion"):
-        return producto["ilustracion"]
-    indice = producto["id"] - 1
+    if dato(producto, "ilustracion"):
+        return dato(producto, "ilustracion")
+    indice = dato(producto, "id") - 1
     return ILUSTRACIONES[indice] if 0 <= indice < len(ILUSTRACIONES) else "caja"
 
 
 @register.filter
 def imagen_producto(producto):
     """Devuelve la foto optimizada de los productos originales del catálogo."""
-    producto_id = producto.get("id")
+    producto_id = dato(producto, "id")
     if isinstance(producto_id, int) and 1 <= producto_id <= 40:
         return f"catalogo/img/productos/producto-{producto_id:02d}.webp"
     return ""
@@ -35,8 +42,8 @@ def imagen_producto(producto):
 @register.filter
 def foto_subida(producto):
     """URL de la foto que subió el administrador, o texto vacío si no tiene."""
-    ruta = producto.get("foto")
-    return settings.MEDIA_URL + ruta if ruta else ""
+    ruta = dato(producto, "foto")
+    return settings.MEDIA_URL + str(ruta) if ruta else ""
 
 
 @register.filter

@@ -501,6 +501,12 @@ textarea { resize: vertical; }
 .producto-tabla small { display: block; color: var(--secundario); margin-top: 5px; }
 .precio-tabla { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .acciones-tabla { display: flex; gap: 8px; }
+/* Botones - y + para ajustar el stock desde la tabla de gestión */
+.ajuste-stock { display: flex; align-items: center; gap: 10px; }
+.ajuste-stock form { display: flex; gap: 4px; }
+.boton-stock { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--borde-fuerte); border-radius: 2px; background: var(--papel); color: var(--tinta); font-size: 1rem; font-weight: 600; line-height: 1; cursor: pointer; transition: background-color var(--rapida), border-color var(--rapida); }
+.boton-stock:hover:not(:disabled) { background: var(--panel); border-color: var(--tinta); }
+.boton-stock:disabled { opacity: .4; cursor: not-allowed; }
 .mensajes { margin-top: 22px; }
 .mensaje { max-width: none; padding: 16px 20px; background: #e4eee5; color: var(--verde); border: 1px solid #a1b9a5; margin-bottom: 12px; font-size: .875rem; }
 .mensaje.error { background: #f5e9e6; color: var(--rojo); border-color: #d1a5a0; }

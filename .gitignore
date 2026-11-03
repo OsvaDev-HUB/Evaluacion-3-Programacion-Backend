@@ -24,6 +24,7 @@ htmlcov/
 
 # Herramientas locales de IA
 .agents/
+.playwright-mcp/
 
 # Archivos del sistema operativo
 .DS_Store

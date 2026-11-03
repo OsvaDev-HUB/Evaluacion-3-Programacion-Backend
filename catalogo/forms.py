@@ -3,6 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
+from .models import Producto
 from .usuarios import agregar_usuario, buscar_usuario, editar_usuarios
 
 EXTENSIONES_FOTO = ("jpg", "jpeg", "png", "webp")
@@ -50,31 +51,59 @@ class RegistroForm(UserCreationForm):
         return usuario
 
 
-class ProductoForm(forms.Form):
-    nombre = forms.CharField(label="Nombre del producto", max_length=120)
-    categoria = forms.CharField(label="Categoría", max_length=60, widget=forms.TextInput(attrs={"list": "categorias"}))
-    precio = forms.IntegerField(label="Precio en pesos chilenos", min_value=1, max_value=999999999)
-    stock = forms.IntegerField(label="Stock disponible", min_value=0, max_value=999999)
-    descripcion = forms.CharField(label="Descripción", max_length=1500, widget=forms.Textarea(attrs={"rows": 4}))
-    foto = forms.FileField(
-        label="Foto del producto", required=False,
-        widget=forms.FileInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
-    )
+# Dibujos disponibles para los productos que no tienen foto
+OPCIONES_ILUSTRACION = [
+    ("caja", "Producto / caja"), ("martillo", "Martillo"), ("destornillador", "Destornilladores"),
+    ("alicate", "Alicate"), ("llave", "Llave ajustable"), ("huincha", "Huincha de medir"),
+    ("taladro", "Taladro / atornillador"), ("sierra", "Sierra circular"),
+    ("tornillos", "Fijaciones"), ("pintura", "Tarro de pintura"), ("rodillo", "Rodillo"),
+    ("brocha", "Brocha"), ("cinta", "Cinta"), ("cable", "Cable eléctrico"),
+    ("ampolleta", "Ampolleta"), ("tuberia", "Gasfitería"), ("saco", "Saco de construcción"),
+    ("silicona", "Sellador"), ("guantes", "Guantes"), ("lentes", "Lentes de seguridad"),
+    ("casco", "Casco"), ("protector", "Protección personal"),
+]
+
+
+class ProductoForm(forms.ModelForm):
+    """Formulario del CRUD de productos, construido a partir del modelo Producto."""
+
+    # Campos que no vienen tal cual del modelo
+    ilustracion = forms.ChoiceField(label="Ilustración si no hay foto", choices=OPCIONES_ILUSTRACION)
     quitar_foto = forms.BooleanField(label="Quitar la foto actual", required=False)
-    ilustracion = forms.ChoiceField(label="Ilustración si no hay foto", choices=[
-        ("caja", "Producto / caja"), ("martillo", "Martillo"), ("destornillador", "Destornilladores"),
-        ("alicate", "Alicate"), ("llave", "Llave ajustable"), ("huincha", "Huincha de medir"),
-        ("taladro", "Taladro / atornillador"), ("sierra", "Sierra circular"),
-        ("tornillos", "Fijaciones"), ("pintura", "Tarro de pintura"), ("rodillo", "Rodillo"),
-        ("brocha", "Brocha"), ("cinta", "Cinta"), ("cable", "Cable eléctrico"),
-        ("ampolleta", "Ampolleta"), ("tuberia", "Gasfitería"), ("saco", "Saco de construcción"),
-        ("silicona", "Sellador"), ("guantes", "Guantes"), ("lentes", "Lentes de seguridad"),
-        ("casco", "Casco"), ("protector", "Protección personal"),
-    ])
+
+    class Meta:
+        model = Producto
+        fields = ["nombre", "categoria", "precio", "stock", "descripcion", "foto", "ilustracion"]
+        labels = {
+            "nombre": "Nombre del producto",
+            "categoria": "Categoría",
+            "precio": "Precio en pesos chilenos",
+            "stock": "Stock disponible",
+            "descripcion": "Descripción",
+            "foto": "Foto del producto",
+        }
+        widgets = {
+            # "list" conecta el campo con las categorías que ya existen (datalist)
+            "categoria": forms.TextInput(attrs={"list": "categorias"}),
+            "descripcion": forms.Textarea(attrs={"rows": 4}),
+            "foto": forms.FileInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # En el modelo la descripción es opcional, pero en la tienda se pide siempre
+        self.fields["descripcion"].required = True
+
+    def clean_precio(self):
+        precio = self.cleaned_data["precio"]
+        if precio < 1:
+            raise forms.ValidationError("El precio debe ser mayor a $0.")
+        return precio
 
     def clean_foto(self):
         foto = self.cleaned_data.get("foto")
-        if not foto:
+        # Solo se revisa si se subió una foto nueva; la que ya estaba guardada se deja igual
+        if "foto" not in self.files:
             return foto
         extension = foto.name.rsplit(".", 1)[-1].lower() if "." in foto.name else ""
         if extension not in EXTENSIONES_FOTO:

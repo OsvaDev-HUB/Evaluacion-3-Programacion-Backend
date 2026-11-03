@@ -10,7 +10,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import Http404, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -294,41 +294,56 @@ def gestion(request):
 
 @administrador_requerido
 def producto_formulario(request, producto_id=None):
-    productos = cargar_productos()
-    producto = buscar_producto(productos, producto_id) if producto_id is not None else None
-    inicial = {**producto, "ilustracion": ilustracion(producto)} if producto else {"stock": 0, "ilustracion": "caja"}
-    form = ProductoForm(request.POST or None, request.FILES or None, initial=inicial)
+    # Con id se edita ese producto; sin id se crea uno nuevo
+    producto = get_object_or_404(Producto, pk=producto_id) if producto_id else None
+    foto_anterior = producto.foto.name if producto else ""
+    inicial = {"ilustracion": ilustracion(producto) if producto else "caja"}
+    form = ProductoForm(request.POST or None, request.FILES or None, instance=producto, initial=inicial)
+
     if request.method == "POST" and form.is_valid():
-        campos = dict(form.cleaned_data)
-        foto = campos.pop("foto")
-        quitar_foto = campos.pop("quitar_foto")
-        if producto:
-            actual = Producto.objects.get(pk=producto_id)
-            for campo, valor in campos.items():
-                setattr(actual, campo, valor)
-        else:
-            actual = Producto(**campos)
-        # Una foto nueva reemplaza a la anterior; también se puede quitar
-        if foto or quitar_foto:
-            actual.foto.delete(save=False)
-        if foto:
-            actual.foto = foto
-        actual.save()
+        guardado = form.save(commit=False)
+        if form.cleaned_data["quitar_foto"] and "foto" not in request.FILES:
+            guardado.foto = ""
+        # Si la foto se cambió o se quitó, se borra el archivo anterior
+        if foto_anterior and guardado.foto.name != foto_anterior:
+            guardado.foto.storage.delete(foto_anterior)
+        guardado.save()
         messages.success(request, "Producto actualizado." if producto else "Producto creado.")
         return redirect("catalogo:gestion")
-    return render(request, "catalogo/producto_formulario.html", {"form": form, "producto": producto, **resumen(productos)})
+
+    if producto and request.method == "POST":
+        # Si hubo errores, se recarga desde la BD para mostrar los datos que siguen guardados
+        producto.refresh_from_db()
+    categorias = Producto.objects.order_by("categoria").values_list("categoria", flat=True).distinct()
+    return render(request, "catalogo/producto_formulario.html", {"form": form, "producto": producto, "categorias": categorias})
 
 
 @administrador_requerido
 def eliminar_producto(request, producto_id):
-    producto = buscar_producto(cargar_productos(), producto_id)
+    producto = get_object_or_404(Producto, pk=producto_id)
     if request.method == "POST":
-        actual = Producto.objects.get(pk=producto_id)
-        actual.foto.delete(save=False)
-        actual.delete()
-        messages.success(request, "Producto eliminado de la tienda.")
+        # Primero se borra el archivo de la foto y luego el registro de la BD
+        producto.foto.delete(save=False)
+        producto.delete()
+        messages.success(request, f"Se eliminó {producto.nombre} de la tienda.")
         return redirect("catalogo:gestion")
     return render(request, "catalogo/eliminar_producto.html", {"producto": producto})
+
+
+@administrador_requerido
+@require_POST
+def ajustar_stock(request, producto_id):
+    """Suma o resta una unidad de stock desde la tabla de gestión."""
+    producto = get_object_or_404(Producto, pk=producto_id)
+    cambio = 1 if request.POST.get("cambio") == "sumar" else -1
+    if producto.stock + cambio < 0:
+        messages.error(request, f"{producto.nombre} ya no tiene stock para descontar.")
+    else:
+        producto.stock += cambio
+        producto.save(update_fields=["stock"])
+        messages.success(request, f"Stock de {producto.nombre}: {producto.stock} unidades.")
+    # Vuelve a la misma tabla, manteniendo la búsqueda y los filtros
+    return redirect(destino_seguro(request, "catalogo:gestion"))
 
 
 @administrador_requerido

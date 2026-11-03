@@ -248,7 +248,7 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
     def test_cliente_no_puede_acceder_ni_escribir_en_administracion(self):
         rutas = [reverse("catalogo:gestion"), reverse("catalogo:crear_producto"),
                  reverse("catalogo:editar_producto", args=[1]), reverse("catalogo:eliminar_producto", args=[1]),
-                 reverse("catalogo:pedidos_gestion")]
+                 reverse("catalogo:ajustar_stock", args=[1]), reverse("catalogo:pedidos_gestion")]
         for ruta in rutas:
             self.assertEqual(self.client.get(ruta).status_code, 302)
         self.client.force_login(self.cliente)
@@ -282,6 +282,39 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.context["form"].errors)
         self.assertEqual(len(cargar_productos()), 40)
+
+    def test_admin_no_puede_crear_producto_con_precio_cero(self):
+        self.client.force_login(self.administrador)
+        response = self.client.post(reverse("catalogo:crear_producto"), {**self.datos_producto, "precio": 0})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("precio", response.context["form"].errors)
+        self.assertEqual(Producto.objects.count(), 40)
+
+    def test_editar_con_errores_no_cambia_el_producto(self):
+        self.client.force_login(self.administrador)
+        response = self.client.post(reverse("catalogo:editar_producto", args=[1]), {**self.datos_producto, "nombre": ""})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(Producto.objects.get(pk=1).nombre, "")
+
+    def test_editar_o_eliminar_producto_inexistente_responde_404(self):
+        self.client.force_login(self.administrador)
+        self.assertEqual(self.client.get(reverse("catalogo:editar_producto", args=[999])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("catalogo:eliminar_producto", args=[999])).status_code, 404)
+
+    def test_admin_ajusta_stock_desde_la_tabla_sin_quedar_negativo(self):
+        self.client.force_login(self.administrador)
+        ruta = reverse("catalogo:ajustar_stock", args=[1])
+        stock_inicial = Producto.objects.get(pk=1).stock
+        response = self.client.post(ruta, {"cambio": "sumar", "next": reverse("catalogo:gestion") + "?q=martillo"})
+        self.assertRedirects(response, reverse("catalogo:gestion") + "?q=martillo")
+        self.assertEqual(Producto.objects.get(pk=1).stock, stock_inicial + 1)
+        self.client.post(ruta, {"cambio": "restar"})
+        self.assertEqual(Producto.objects.get(pk=1).stock, stock_inicial)
+        # No se puede bajar de 0 ni ajustar con GET
+        Producto.objects.filter(pk=1).update(stock=0)
+        self.client.post(ruta, {"cambio": "restar"})
+        self.assertEqual(Producto.objects.get(pk=1).stock, 0)
+        self.assertEqual(self.client.get(ruta).status_code, 405)
 
     def test_admin_sube_foto_del_producto_y_se_borra_al_eliminarlo(self):
         with TemporaryDirectory() as carpeta, override_settings(MEDIA_ROOT=carpeta):
