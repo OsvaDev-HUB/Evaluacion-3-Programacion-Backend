@@ -1,0 +1,1 @@
+<div class="campo-formulario campo-{{ campo.name }}"><label for="{{ campo.id_for_label }}">{{ campo.label }}</label>{{ campo }}{% if campo.help_text %}<div class="ayuda-campo" id="{{ campo.auto_id }}_helptext">{{ campo.help_text|safe }}</div>{% endif %}{% for error in campo.errors %}<p class="error-campo" id="{{ campo.auto_id }}_error">{{ error }}</p>{% endfor %}</div>

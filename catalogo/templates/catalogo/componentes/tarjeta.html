@@ -1,0 +1,17 @@
+{% load tienda %}
+<article class="tarjeta-producto{% if producto.stock == 0 %} producto-agotado{% endif %}" data-producto>
+    <a class="imagen-tarjeta" href="{% url 'catalogo:detalle' producto.id %}" aria-label="Ver {{ producto.nombre }}">
+        {% include 'catalogo/componentes/imagen.html' %}
+        <span class="codigo-producto">F-{{ producto.id|stringformat:'03d' }}<span>{{ producto.categoria }}</span></span>
+        {% if producto.stock == 0 %}<span class="etiqueta-agotado">Agotado</span>{% endif %}
+    </a>
+    <div class="tarjeta-contenido">
+        <h3><a href="{% url 'catalogo:detalle' producto.id %}">{{ producto.nombre }}</a></h3>
+        <p class="precio">{{ producto.precio|pesos }}</p>
+        {% if producto.stock > 0 %}<p class="stock disponible"><span aria-hidden="true"></span>{{ producto.stock }} disponibles</p>{% else %}<p class="stock agotado">Sin stock por el momento</p>{% endif %}
+        <form action="{% url 'catalogo:modificar_carrito' producto.id %}" method="post" data-agregar-carrito>
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="cantidad" value="1">
+            <button class="boton boton-compra" type="submit" {% if producto.stock == 0 %}disabled{% endif %}><span data-boton-texto>{% if producto.stock > 0 %}Agregar al carrito{% else %}No disponible{% endif %}</span><svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        </form>
+    </div>
+</article>

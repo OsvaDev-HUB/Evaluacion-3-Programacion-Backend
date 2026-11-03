@@ -1,0 +1,79 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Herramientas y materiales para tu próximo proyecto. Explora el catálogo de Ferretería El Tornillo.">
+    <meta name="theme-color" content="#222724">
+    <title>{% block title %}Ferretería El Tornillo | Tienda online{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{% static 'catalogo/img/marca/favicon.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'catalogo/img/marca/apple-touch-icon.png' %}">
+    <link rel="preload" href="{% static 'catalogo/fonts/LeagueGothic.ttf' %}" as="font" type="font/ttf" crossorigin>
+    <link rel="stylesheet" href="{% static 'catalogo/css/estilos.css' %}?v=30-producto-foto">
+    <script src="{% static 'catalogo/js/catalogo.js' %}?v=13-producto-foto" defer></script>
+</head>
+<body>
+    {% include 'catalogo/componentes/iconos.html' %}
+    <a class="salto-contenido" href="#contenido">Saltar al contenido</a>
+    <header class="encabezado-sitio">
+        <div class="contenedor barra-navegacion">
+            <a class="marca" href="{% url 'catalogo:inicio' %}" aria-label="El Tornillo, inicio">
+                <img class="marca-logo" src="{% static 'catalogo/img/marca/logo.webp' %}" alt="" width="211" height="240">
+                <span class="marca-texto"><small>Ferretería</small><strong>El Tornillo</strong></span>
+            </a>
+            {% block navegacion_cabecera %}
+            <form class="buscador-principal" action="{% url 'catalogo:lista' %}#productos" role="search">
+                <label class="solo-lectores" for="busqueda-global">Buscar en la tienda</label>
+                <input id="busqueda-global" type="search" name="q" value="{{ busqueda }}" placeholder="Buscar herramientas y materiales">
+                <button type="submit" aria-label="Buscar productos"><svg class="icono" aria-hidden="true"><use href="#i-search"/></svg></button>
+            </form>
+            {% endblock %}
+            <nav class="acciones-cuenta" aria-label="Cuenta y carrito">
+                <a href="{% if user.is_authenticated %}{% url 'catalogo:cuenta' %}{% else %}{% url 'login' %}{% endif %}" class="acceso-cuenta" aria-label="Mi cuenta">
+                    <svg class="icono" aria-hidden="true"><use href="#i-user"/></svg>
+                    <span>{% if user.is_authenticated %}<small>Hola, {{ user.first_name|default:user.username }}</small>{% endif %}<strong>Mi cuenta</strong></span>
+                </a>
+                <a class="acceso-carrito" aria-label="Mi carrito" href="{% url 'catalogo:carrito' %}">
+                    <svg class="icono" aria-hidden="true"><use href="#i-cart"/></svg><span>Carrito</span>
+                    <span class="contador-carrito" data-carrito-contador aria-live="polite">{{ cantidad_carrito }}</span>
+                </a>
+            </nav>
+        </div>
+        {% block navegacion_categorias %}
+        <nav class="navegacion-tienda" aria-label="Navegación principal">
+            <div class="contenedor">
+                <a href="{% url 'catalogo:inicio' %}">Inicio</a>
+                <a class="nav-tienda" href="{% url 'catalogo:lista' %}" {% if request.resolver_match.url_name == 'lista' and not categoria_actual %}aria-current="page"{% endif %}>Todo el catálogo</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Herramientas+manuales#productos" {% if categoria_actual == 'Herramientas manuales' %}aria-current="page"{% endif %}>Herramientas manuales</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Herramientas+el%C3%A9ctricas#productos" {% if categoria_actual == 'Herramientas eléctricas' %}aria-current="page"{% endif %}>Herramientas eléctricas</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Construcci%C3%B3n#productos" {% if categoria_actual == 'Construcción' %}aria-current="page"{% endif %}>Construcción</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Pinturas#productos" {% if categoria_actual == 'Pinturas' %}aria-current="page"{% endif %}>Pinturas</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Electricidad#productos" {% if categoria_actual == 'Electricidad' %}aria-current="page"{% endif %}>Electricidad</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Gasfiter%C3%ADa#productos" {% if categoria_actual == 'Gasfitería' %}aria-current="page"{% endif %}>Gasfitería</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Fijaciones#productos" {% if categoria_actual == 'Fijaciones' %}aria-current="page"{% endif %}>Fijaciones</a>
+                <a href="{% url 'catalogo:lista' %}?categoria=Seguridad#productos" {% if categoria_actual == 'Seguridad' %}aria-current="page"{% endif %}>Seguridad</a>
+                {% if user.is_staff %}<a class="nav-gestion" href="{% url 'catalogo:gestion' %}">Administrar tienda <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></a>{% endif %}
+            </div>
+        </nav>
+        {% endblock %}
+    </header>
+    <main id="contenido" tabindex="-1">
+        {% if messages %}<div class="contenedor mensajes" role="status">{% for message in messages %}<p class="mensaje {{ message.tags }}">{{ message }}</p>{% endfor %}</div>{% endif %}
+        {% block content %}{% endblock %}
+    </main>
+    <div class="notificacion" id="notificacion" role="status" aria-live="polite" hidden>
+        <svg class="icono" aria-hidden="true" data-aviso-icono><use href="#i-check"/></svg>
+        <span data-mensaje></span><a href="{% url 'catalogo:carrito' %}">Ver carrito</a>
+        <button type="button" aria-label="Cerrar notificación">×</button>
+    </div>
+    <footer class="pie-sitio">
+        <div class="contenedor pie-contenido">
+            <div><a class="marca marca-pie" href="{% url 'catalogo:inicio' %}"><img class="marca-logo" src="{% static 'catalogo/img/marca/logo.webp' %}" alt="" width="211" height="240" loading="lazy"><strong>El Tornillo</strong></a><p>Todo empieza con una buena herramienta.</p></div>
+            <nav aria-label="Enlaces del pie"><a href="{% url 'catalogo:inicio' %}">Inicio</a><a href="{% url 'catalogo:inicio' %}#como-comprar">Cómo comprar</a><a href="{% url 'catalogo:inicio' %}#historia">Nuestra historia</a><a href="{% url 'catalogo:inicio' %}#contacto">Contacto</a><a href="{% url 'catalogo:inicio' %}#preguntas">Preguntas frecuentes</a><a href="{% url 'catalogo:lista' %}">Catálogo</a><a href="{% url 'catalogo:carrito' %}">Mi carrito</a><a href="{% url 'login' %}?next={% url 'catalogo:gestion' %}">Acceso de administración</a></nav>
+        </div>
+        <div class="contenedor pie-legal"><span>Ferretería El Tornillo</span><span>Tienda de demostración · Precios en pesos chilenos</span></div>
+    </footer>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

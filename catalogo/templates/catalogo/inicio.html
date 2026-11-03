@@ -1,0 +1,16 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}El Tornillo | Herramientas para tus proyectos{% endblock %}
+{% block navegacion_cabecera %}
+<nav class="navegacion-presentacion" aria-label="Navegación principal">
+    <a href="{% url 'catalogo:inicio' %}" aria-current="page">Inicio</a>
+    <a href="#como-comprar">Cómo comprar</a>
+    <a href="#historia">Nuestra historia</a>
+    <a href="#contacto">Contacto</a>
+    <a href="#preguntas">Preguntas</a>
+    <a href="{% url 'catalogo:lista' %}">Catálogo</a>
+</nav>
+{% endblock %}
+{% block navegacion_categorias %}{% endblock %}
+{% block content %}
+{% include 'catalogo/componentes/presentacion.html' %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'catalogo/base.html' %}{% load tienda %}
+{% block title %}Confirmar pedido | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <a class="volver" href="{% url 'catalogo:carrito' %}">Volver al carrito</a>
+    <header class="cabecera-seccion"><div><h1>Último paso, revisa tu pedido</h1><p>Completa tus datos para el retiro en tienda.</p></div></header>
+    <div class="compra-layout">
+        <form class="formulario-panel" id="form-pedido" method="post">
+            {% csrf_token %}<h2>Datos de contacto</h2>
+            {% include 'catalogo/componentes/campos.html' %}
+            <input type="hidden" name="token" value="{{ token }}">
+        </form>
+        <aside class="resumen-compra">
+            <h2>Tu pedido</h2>
+            <ul class="lineas-pedido">{% for item in items %}<li><span>{{ item.cantidad }} × {{ item.producto.nombre }}</span><strong>{{ item.subtotal|pesos }}</strong></li>{% endfor %}</ul>
+            <dl><div><dt>Entrega</dt><dd>Retiro en tienda</dd></div><div class="total-compra"><dt>Total</dt><dd>{{ total|pesos }}</dd></div></dl>
+            <p class="nota-demo">Esta es una compra de demostración: el pedido se registra y el stock se actualiza. No se realizan pagos ni envíos reales.</p>
+            <button class="boton boton-primario boton-ancho" type="submit" form="form-pedido" data-confirmar-pedido>Confirmar pedido de demostración</button>
+        </aside>
+    </div>
+</div>
+{% endblock %}

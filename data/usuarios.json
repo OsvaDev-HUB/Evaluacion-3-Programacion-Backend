@@ -1,0 +1,20 @@
+{
+  "usuarios": [
+    {
+      "username": "admin",
+      "nombre": "Administrador",
+      "email": "admin@eltornillo.example",
+      "password": "AdminTornillo2026!",
+      "rol": "admin",
+      "activo": true
+    },
+    {
+      "username": "cliente",
+      "nombre": "Cliente",
+      "email": "cliente@eltornillo.example",
+      "password": "ClienteTornillo2026!",
+      "rol": "cliente",
+      "activo": true
+    }
+  ]
+}

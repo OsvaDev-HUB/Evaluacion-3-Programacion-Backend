@@ -1,0 +1,3 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Eliminar producto | El Tornillo{% endblock %}
+{% block content %}<div class="contenedor pagina-interior"><div class="formulario-panel estrecho"><h1>Eliminar producto</h1><p><strong>{{ producto.nombre }}</strong> dejará de aparecer en la tienda. Los pedidos anteriores conservarán su información.</p><form method="post">{% csrf_token %}<div class="acciones-formulario"><button class="boton boton-peligro" type="submit">Eliminar producto</button><a class="boton boton-secundario" href="{% url 'catalogo:gestion' %}">Cancelar</a></div></form></div></div>{% endblock %}

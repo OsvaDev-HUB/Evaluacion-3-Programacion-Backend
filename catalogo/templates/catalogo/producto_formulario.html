@@ -1,0 +1,51 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}{% if producto %}Editar producto{% else %}Crear producto{% endif %} | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <a class="volver" href="{% url 'catalogo:gestion' %}">Volver a productos y stock</a>
+    <form class="formulario-panel formulario-producto" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <header class="producto-cabecera">
+            <div>
+                <h1>{% if producto %}Editar producto{% else %}Crear producto{% endif %}</h1>
+                <p class="texto-secundario">Los cambios se mostrarán en la tienda al guardar.</p>
+            </div>
+            <div class="acciones-formulario">
+                <a class="boton boton-secundario" href="{% url 'catalogo:gestion' %}">Cancelar</a>
+                <button class="boton boton-primario" type="submit" data-texto-envio="Guardando…">{% if producto %}Guardar cambios{% else %}Crear producto{% endif %}</button>
+            </div>
+        </header>
+        {% include 'catalogo/componentes/resumen_errores.html' %}
+        <div class="producto-grilla">
+            <!-- Foto: se elige o se arrastra, y se ve como en la tarjeta del catálogo -->
+            <div class="producto-foto">
+                <label class="zona-foto" for="{{ form.foto.id_for_label }}" data-zona-foto>
+                    <span class="zona-foto-vista">
+                        <span class="zona-foto-actual" data-foto-actual>
+                            {% if producto %}{% include 'catalogo/componentes/imagen.html' %}{% else %}<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg>{% endif %}
+                        </span>
+                        <img class="imagen-producto" data-vista-previa alt="Vista previa de la foto elegida" hidden>
+                    </span>
+                    <span class="zona-foto-texto">
+                        <strong>{% if producto %}Cambiar foto{% else %}Agregar foto{% endif %}</strong>
+                        <small>Arrastra una imagen o haz clic. JPG, PNG o WebP de hasta 5 MB.</small>
+                    </span>
+                    {{ form.foto }}
+                </label>
+                <p class="zona-foto-estado" data-estado-foto aria-live="polite"></p>
+                {% for error in form.foto.errors %}<p class="error-campo">{{ error }}</p>{% endfor %}
+                {% if producto.foto %}<label class="quitar-foto">{{ form.quitar_foto }} {{ form.quitar_foto.label }}</label>{% endif %}
+            </div>
+            <div class="producto-campos">
+                {% include 'catalogo/componentes/campo.html' with campo=form.nombre %}
+                {% include 'catalogo/componentes/campo.html' with campo=form.categoria %}
+                {% include 'catalogo/componentes/campo.html' with campo=form.precio %}
+                {% include 'catalogo/componentes/campo.html' with campo=form.stock %}
+                {% include 'catalogo/componentes/campo.html' with campo=form.ilustracion %}
+                {% include 'catalogo/componentes/campo.html' with campo=form.descripcion %}
+            </div>
+        </div>
+        <datalist id="categorias">{% for categoria in categorias %}<option value="{{ categoria }}">{% endfor %}</datalist>
+    </form>
+</div>
+{% endblock %}

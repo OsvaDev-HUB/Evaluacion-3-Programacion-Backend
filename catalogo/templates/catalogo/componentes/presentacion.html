@@ -1,0 +1,180 @@
+{% load static tienda %}
+<section class="presentacion" id="inicio" aria-labelledby="titulo-inicio" tabindex="-1">
+    <div class="contenedor presentacion-interior">
+        <div class="presentacion-texto">
+            <h1 id="titulo-inicio">Dale forma a tu próximo proyecto.</h1>
+            <p>Reparar tu casa, renovar un espacio o construir algo nuevo. En Ferretería El Tornillo encuentras herramientas y materiales para pasar de la idea a la obra.</p>
+            <a class="boton boton-primario presentacion-boton" href="{% url 'catalogo:lista' %}">Ver catálogo <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+            <!-- Cifras reales del inventario -->
+            <ul class="presentacion-cifras" role="list">
+                <li><svg class="icono" aria-hidden="true"><use href="#i-box"/></svg><span><strong>{{ total_productos }}</strong> productos</span></li>
+                <li><svg class="icono" aria-hidden="true"><use href="#i-capas"/></svg><span><strong>{{ con_stock }}</strong> con stock</span></li>
+                <li><svg class="icono" aria-hidden="true"><use href="#i-etiqueta"/></svg><span><strong>{{ total_categorias }}</strong> categorías</span></li>
+            </ul>
+        </div>
+        <figure class="presentacion-imagen">
+            <!-- Hexágonos tomados de la forma del logo, detrás del maestro -->
+            <svg class="presentacion-hexagonos" viewBox="0 0 600 700" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+                <defs>
+                    <linearGradient id="hexagono-suave" x1="1" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#e04415" stop-opacity=".55"/>
+                        <stop offset=".75" stop-color="#e04415" stop-opacity=".08"/>
+                        <stop offset="1" stop-color="#e04415" stop-opacity="0"/>
+                    </linearGradient>
+                    <linearGradient id="hexagono-fuerte" x1="1" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#e04415" stop-opacity=".9"/>
+                        <stop offset=".7" stop-color="#e04415" stop-opacity=".35"/>
+                        <stop offset="1" stop-color="#e04415" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <polygon class="hexagono-contorno" points="290,110 550,260 550,560 290,710 30,560 30,260"/>
+                <polygon fill="url(#hexagono-suave)" points="380,20 640,170 640,470 380,620 120,470 120,170"/>
+                <polygon fill="url(#hexagono-fuerte)" points="450,260 650,375 650,605 450,720 250,605 250,375"/>
+            </svg>
+            <img src="{% static 'catalogo/img/landing/maestro-hero.webp' %}" alt="Maestro de El Tornillo con casco naranjo y martillo en alto" width="1000" height="1240" fetchpriority="high">
+        </figure>
+        <!-- Regla de medición: el maestro pasa por delante -->
+        <div class="presentacion-regla">
+            <p class="presentacion-notas"><span>Precios en pesos chilenos</span><span>Imagen referencial</span></p>
+        </div>
+    </div>
+</section>
+<section class="proyectos-inicio contenedor" aria-labelledby="titulo-proyectos">
+    <header class="cabecera-inicio">
+        <h2 id="titulo-proyectos">¿Qué tienes en mente?</h2>
+        <p>Una reparación pendiente. Una pared con otro color. Algo hecho por ti. Encuentra por dónde empezar.</p>
+    </header>
+    <div class="proyectos-opciones">
+        <a class="proyecto-enlace" href="{% url 'catalogo:lista' %}?categoria=Herramientas+manuales#productos">
+            <span class="proyecto-imagen"><img src="{% static 'catalogo/img/productos/producto-01.webp' %}" alt="" width="900" height="672" loading="lazy" decoding="async"></span>
+            <div><h3>Resolver esa reparación</h3><p>Herramientas manuales para los arreglos de cada día.</p><span>Ver herramientas manuales <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></span></div>
+        </a>
+        <a class="proyecto-enlace" href="{% url 'catalogo:lista' %}?categoria=Pinturas#productos">
+            <span class="proyecto-imagen"><img src="{% static 'catalogo/img/productos/producto-18.webp' %}" alt="" width="900" height="672" loading="lazy" decoding="async"></span>
+            <div><h3>Darle otro aire a tu espacio</h3><p>Pinturas, brochas y rodillos para renovar tus paredes.</p><span>Ver pinturas y accesorios <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></span></div>
+        </a>
+        <a class="proyecto-enlace" href="{% url 'catalogo:lista' %}?categoria=Herramientas+el%C3%A9ctricas#productos">
+            <span class="proyecto-imagen"><img src="{% static 'catalogo/img/productos/producto-09.webp' %}" alt="" width="900" height="672" loading="lazy" decoding="async"></span>
+            <div><h3>Construir algo a tu manera</h3><p>Herramientas eléctricas para perforar, cortar y montar.</p><span>Ver herramientas eléctricas <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></span></div>
+        </a>
+    </div>
+</section>
+<section class="pasillos-inicio contenedor" aria-labelledby="titulo-pasillos">
+    <header class="cabecera-inicio">
+        <h2 id="titulo-pasillos">Recorre la tienda.</h2>
+        <p>Cada categoría abre el catálogo ya filtrado, con precios y stock a la vista.</p>
+    </header>
+    <ul class="pasillos-grilla" role="list">
+        {% for categoria in categorias_portada %}
+        <li>
+            <a class="pasillo" href="{% url 'catalogo:lista' %}?categoria={{ categoria.nombre|urlencode }}#productos">
+                <span class="pasillo-imagen">
+                    {% with ruta_imagen=categoria.producto|imagen_producto %}{% if ruta_imagen %}<img src="{% static ruta_imagen %}" alt="" width="900" height="672" loading="lazy" decoding="async">{% endif %}{% endwith %}
+                </span>
+                <span class="pasillo-nombre">{{ categoria.nombre }}</span>
+                <span class="pasillo-datos">
+                    <span>{{ categoria.total }} producto{{ categoria.total|pluralize:'s' }}</span>
+                    <span class="disponible"><span aria-hidden="true"></span>{{ categoria.con_stock }} con stock</span>
+                    <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg>
+                </span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+<section class="guia-compra" id="como-comprar" aria-labelledby="titulo-como-comprar" tabindex="-1">
+    <div class="contenedor guia-compra-interior">
+        <div class="guia-compra-titulo">
+            <h2 id="titulo-como-comprar">Empieza a tu ritmo.</h2>
+            <p>Compra de demostración, sin cobros ni envíos reales.</p>
+        </div>
+        <ol class="pasos-compra" role="list">
+            <li><h3>Explora sin registrarte</h3><p>Abre el catálogo y compara precios en pesos chilenos y stock disponible.</p></li>
+            <li><h3>Arma tu proyecto</h3><p>Agrega lo que necesitas al carrito. Puedes cambiar las cantidades antes de confirmar.</p></li>
+            <li><h3>Guarda tu pedido</h3><p>Inicia sesión o crea tu cuenta al finalizar. Después podrás revisar tus pedidos.</p></li>
+        </ol>
+    </div>
+</section>
+<section class="historia-inicio" id="historia" aria-labelledby="titulo-historia" tabindex="-1">
+    <div class="contenedor historia-interior">
+        <h2 id="titulo-historia">Nuestra historia empieza con una necesidad simple.</h2>
+        <div class="historia-texto">
+            <p>Encontrar la herramienta correcta debería ser el primer paso de un proyecto, no un obstáculo.</p>
+            <p>Sabemos que cada visita nace de una necesidad distinta: reparar algo que no puede esperar, renovar un rincón de la casa o empezar una idea nueva. Por eso reunimos productos claros, precios visibles y stock a la vista. Tú traes el proyecto; nosotros te ayudamos a encontrar por dónde empezar.</p>
+        </div>
+        <figure class="foto-recorte historia-foto">
+            <img src="{% static 'catalogo/img/landing/equipo.webp' %}" alt="Equipo de maestros de El Tornillo con taladro, rodillo y caja de herramientas" width="820" height="1024" loading="lazy" decoding="async">
+        </figure>
+    </div>
+</section>
+<section class="contacto-inicio" id="contacto" aria-labelledby="titulo-contacto" tabindex="-1">
+    <div class="contenedor contacto-interior">
+        <header class="cabecera-inicio">
+            <h2 id="titulo-contacto">¿Tienes una pregunta?</h2>
+            <p>Te ayudamos a elegir una herramienta, comparar alternativas o revisar un pedido. Llámanos, escríbenos o visítanos en el local.</p>
+        </header>
+        <div class="contacto-grilla">
+            <figure class="contacto-foto">
+                <img src="{% static 'catalogo/img/landing/asesoria.webp' %}" alt="Maestros de El Tornillo asesorando a una pareja de clientes" width="820" height="1024" loading="lazy" decoding="async">
+            </figure>
+            <div class="contacto-dato">
+                <svg class="icono" aria-hidden="true"><use href="#i-telefono"/></svg>
+                <h3>Teléfono</h3>
+                <p class="contacto-valor">+56 2 2345 6789</p>
+                <p class="contacto-nota">Atendemos en el mismo horario del local.</p>
+            </div>
+            <div class="contacto-dato">
+                <svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>
+                <h3>Correo</h3>
+                <p class="contacto-valor">contacto@eltornillo.example</p>
+                <p class="contacto-nota">Respondemos el mismo día hábil.</p>
+            </div>
+            <div class="contacto-dato">
+                <svg class="icono" aria-hidden="true"><use href="#i-ubicacion"/></svg>
+                <h3>Dirección</h3>
+                <p class="contacto-valor">Av. Los Carpinteros 1240, Santiago</p>
+                <p class="contacto-nota">Ven a ver los productos antes de comprar.</p>
+            </div>
+            <div class="contacto-dato">
+                <svg class="icono" aria-hidden="true"><use href="#i-reloj"/></svg>
+                <h3>Horario</h3>
+                <p class="contacto-valor">Lunes a viernes, 9:00 a 19:00</p>
+                <p class="contacto-nota">Sábado de 10:00 a 14:00.</p>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="preguntas-inicio contenedor" id="preguntas" aria-labelledby="titulo-preguntas" tabindex="-1">
+    <header class="preguntas-cabecera">
+        <h2 id="titulo-preguntas">Preguntas frecuentes.</h2>
+        <p>Lo que más nos preguntan antes de armar un pedido.</p>
+        <p class="preguntas-ayuda">¿Tienes otra duda? <a href="#contacto">Revisa nuestros datos de contacto</a>.</p>
+    </header>
+    <!-- Acordeón nativo: funciona sin JavaScript y abre una pregunta a la vez -->
+    <div class="preguntas-lista">
+        <details name="preguntas" open>
+            <summary>¿Necesito una cuenta para comprar?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>No para mirar. Puedes recorrer el <a href="{% url 'catalogo:lista' %}">catálogo</a>, revisar precios y stock y armar tu carrito sin registrarte. La cuenta se pide solo al confirmar el pedido, para guardarlo y que puedas revisarlo después.</p></div>
+        </details>
+        <details name="preguntas">
+            <summary>¿Se cobra algo al confirmar un pedido?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>No. El Tornillo es una tienda de demostración: el pedido queda registrado y descuenta el stock, pero no se hace ningún cobro ni envío real.</p></div>
+        </details>
+        <details name="preguntas">
+            <summary>¿Cómo sé si un producto tiene stock?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>Cada producto muestra cuántas unidades quedan. En el catálogo puedes elegir <a href="{% url 'catalogo:lista' %}?stock=disponible#productos">solo productos con stock</a> para ver lo que está disponible.</p></div>
+        </details>
+        <details name="preguntas">
+            <summary>¿Cómo recibo mi pedido?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>Los pedidos se retiran en el local de Av. Los Carpinteros 1240, Santiago, de lunes a viernes de 9:00 a 19:00 y el sábado de 10:00 a 14:00.</p></div>
+        </details>
+        <details name="preguntas">
+            <summary>¿Puedo cambiar las cantidades antes de confirmar?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>Sí. En tu <a href="{% url 'catalogo:carrito' %}">carrito</a> puedes subir, bajar o quitar productos. La cantidad máxima de cada uno es el stock disponible.</p></div>
+        </details>
+        <details name="preguntas">
+            <summary>¿Dónde reviso mis pedidos?<svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+            <div class="respuesta"><p>En <a href="{% url 'catalogo:cuenta' %}">Mi cuenta</a>, después de iniciar sesión. Ahí aparece cada pedido con sus productos y su total.</p></div>
+        </details>
+    </div>
+</section>

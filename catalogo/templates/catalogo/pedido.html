@@ -1,0 +1,60 @@
+{% extends 'catalogo/base.html' %}
+{% load tienda %}
+
+{% block title %}Pedido {{ pedido.id }} | El Tornillo{% endblock %}
+
+{% block content %}
+<div class="contenedor pagina-interior">
+    {% if user.is_staff %}
+        {% include 'catalogo/componentes/nav_gestion.html' with detalle_pedido_gestion=True %}
+    {% endif %}
+    <div class="formulario-panel confirmacion">
+        {% if user.is_staff %}
+            <p class="categoria-producto">Administración de pedidos</p>
+            <h1>Detalle del pedido</h1>
+            <p class="texto-secundario">Pedido #{{ pedido.id }}</p>
+            <p><span class="estado estado-disponible">Registrado · Demo</span></p>
+            <p class="texto-secundario">
+                Fecha: <time datetime="{{ pedido.fecha }}">{{ pedido.fecha|slice:':10' }} a las {{ pedido.fecha|slice:'11:16' }}</time>
+            </p>
+            <section class="contacto-pedido" aria-labelledby="titulo-cliente">
+                <h2 id="titulo-cliente">Datos del cliente</h2>
+                <dl class="datos-cliente-pedido">
+                    <div><dt>Nombre de quien retira</dt><dd>{{ pedido.contacto.nombre }}</dd></div>
+                    <div><dt>Correo electrónico</dt><dd>{{ pedido.contacto.email }}</dd></div>
+                    <div><dt>Teléfono de contacto</dt><dd>{{ pedido.contacto.telefono }}</dd></div>
+                    <div><dt>Entrega</dt><dd>Retiro en tienda</dd></div>
+                </dl>
+            </section>
+            <h2 class="titulo-productos-pedido">Productos del pedido</h2>
+        {% else %}
+            <span class="icono-exito"><svg class="icono" aria-hidden="true"><use href="#i-check"/></svg></span>
+            <h1>Tu pedido quedó registrado</h1>
+            <p class="texto-secundario">Pedido #{{ pedido.id }}</p>
+            <p>Gracias, {{ pedido.contacto.nombre }}. Puedes consultar este pedido desde tu cuenta.</p>
+        {% endif %}
+
+        <ul class="lineas-pedido">
+            {% for item in pedido.items %}
+                <li>
+                    <span>
+                        {{ item.cantidad }} × {{ item.nombre }}
+                        {% if user.is_staff %}<small class="precio-unitario-pedido">{{ item.precio|pesos }} por unidad</small>{% endif %}
+                    </span>
+                    <strong>{{ item.subtotal|pesos }}</strong>
+                </li>
+            {% endfor %}
+        </ul>
+        <p class="total-pedido">Total <strong>{{ pedido.total|pesos }}</strong></p>
+        <p class="nota-demo">Pedido de demostración para retiro en tienda. No se efectuó ningún cobro ni se envió una confirmación por correo.</p>
+        <div class="acciones-formulario">
+            {% if user.is_staff %}
+                <a class="boton boton-primario" href="{% url 'catalogo:pedidos_gestion' %}">Volver a pedidos de la tienda</a>
+            {% else %}
+                <a class="boton boton-primario" href="{% url 'catalogo:lista' %}#productos">Seguir comprando</a>
+                <a class="boton boton-secundario" href="{% url 'catalogo:cuenta' %}">Mis pedidos</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

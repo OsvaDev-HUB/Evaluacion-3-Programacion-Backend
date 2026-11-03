@@ -1,0 +1,34 @@
+{% extends 'catalogo/base.html' %}{% load static %}
+{% block title %}Crear cuenta | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <a class="volver" href="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Volver a iniciar sesión</a>
+    <section class="panel-acceso panel-registro" aria-labelledby="titulo-registro">
+        <div class="formulario-acceso">
+            <h1 id="titulo-registro">Crea tu cuenta</h1>
+            <p class="texto-secundario">Guarda tus pedidos y prepara tu próximo proyecto.</p>
+            <form method="post" class="formulario-registro">
+                {% csrf_token %}{% include 'catalogo/componentes/campos.html' %}
+                <input type="hidden" name="next" value="{{ next }}">
+                <button class="boton boton-primario boton-ancho" type="submit" data-texto-envio="Creando cuenta…">Crear cuenta</button>
+            </form>
+            <p class="pie-formulario">¿Ya tienes cuenta? <a href="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Iniciar sesión</a></p>
+        </div>
+        <div class="acceso-presentacion">
+            <div class="registro-encabezado">
+                <h2>Tu cuenta, lista en un minuto.</h2>
+                <img class="marca-sello" src="{% static 'catalogo/img/marca/logo.webp' %}" alt="" width="211" height="240">
+            </div>
+            <!-- Beneficios reales de crear la cuenta -->
+            <ul class="beneficios-cuenta" role="list">
+                <li><svg class="icono" aria-hidden="true"><use href="#i-check"/></svg>Tus pedidos quedan guardados con su detalle y total.</li>
+                <li><svg class="icono" aria-hidden="true"><use href="#i-check"/></svg>Tu nombre y correo se completan solos al confirmar.</li>
+                <li><svg class="icono" aria-hidden="true"><use href="#i-check"/></svg>Tu carrito se mantiene al crear la cuenta.</li>
+            </ul>
+            <figure class="foto-recorte acceso-foto">
+                <img src="{% static 'catalogo/img/landing/revision-clientes.webp' %}" alt="Cliente revisando un pedido junto a maestros de El Tornillo" width="820" height="990" loading="lazy" decoding="async">
+            </figure>
+        </div>
+    </section>
+</div>
+{% endblock %}

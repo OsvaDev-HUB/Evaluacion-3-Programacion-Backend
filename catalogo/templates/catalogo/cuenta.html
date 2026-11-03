@@ -1,0 +1,3 @@
+{% extends 'catalogo/base.html' %}{% load tienda %}
+{% block title %}Mi cuenta | El Tornillo{% endblock %}
+{% block content %}<div class="contenedor pagina-interior"><header class="cabecera-seccion"><div><h1>Hola, {{ user.first_name|default:user.username }}</h1><p>Este es el lugar para consultar tus pedidos.</p></div><div class="acciones-formulario">{% if user.is_staff %}<a class="boton boton-primario" href="{% url 'catalogo:gestion' %}">Administrar tienda</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="boton boton-secundario" type="submit">Cerrar sesión</button></form></div></header><section class="formulario-panel"><h2>Mis pedidos</h2>{% include 'catalogo/componentes/pedidos.html' %}</section></div>{% endblock %}

@@ -1,0 +1,3 @@
+{% extends 'catalogo/base.html' %}{% load static %}
+{% block title %}Producto no encontrado | El Tornillo{% endblock %}
+{% block content %}<section class="contenedor pagina-interior"><div class="estado-vacio con-foto"><div><p class="codigo-error">404</p><h1>Producto no encontrado</h1><p>Este producto ya no está disponible en la tienda o el enlace es incorrecto.</p><a class="boton boton-primario" href="{% url 'catalogo:lista' %}">Volver a la tienda</a></div><img src="{% static 'catalogo/img/landing/maestro-hero.webp' %}" alt="" width="1000" height="1240" loading="lazy" decoding="async"></div></section>{% endblock %}

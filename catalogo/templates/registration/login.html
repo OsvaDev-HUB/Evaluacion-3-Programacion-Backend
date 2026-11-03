@@ -1,0 +1,28 @@
+{% extends 'catalogo/base.html' %}{% load static %}
+{% block title %}Iniciar sesión | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <a class="volver" href="{% url 'catalogo:lista' %}">Volver a la tienda</a>
+    <section class="panel-acceso" aria-labelledby="titulo-acceso">
+        <div class="formulario-acceso">
+            <h1 id="titulo-acceso">Iniciar sesión</h1>
+            <p class="texto-secundario">Qué bueno verte de nuevo.</p>
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}{% include 'catalogo/componentes/campos.html' %}
+                <input type="hidden" name="next" value="{{ next }}">
+                <button class="boton boton-primario boton-ancho" type="submit" data-texto-envio="Ingresando…">Ingresar</button>
+            </form>
+            <p class="pie-formulario">¿Primera vez aquí? <a href="{% url 'catalogo:registro' %}{% if next %}?next={{ next|urlencode }}{% endif %}">Crear una cuenta</a></p>
+        </div>
+        <div class="acceso-presentacion">
+            <img class="marca-sello" src="{% static 'catalogo/img/marca/logo.webp' %}" alt="" width="211" height="240">
+            <h2>Un buen proyecto<br>empieza contigo.</h2>
+            <p>Ingresa a tu cuenta para confirmar tu pedido y consultar tus compras.</p>
+            <div class="acceso-administrador"><svg class="icono" aria-hidden="true"><use href="#i-shield"/></svg><div><h2>Acceso de administración</h2><p>Usa este mismo formulario con tu cuenta de administrador para gestionar productos, precios y stock.</p></div></div>
+            <figure class="foto-recorte acceso-foto">
+                <img src="{% static 'catalogo/img/landing/equipo-clientes.webp' %}" alt="Maestros de El Tornillo revisando planos con una clienta" width="820" height="982" loading="lazy" decoding="async">
+            </figure>
+        </div>
+    </section>
+</div>
+{% endblock %}

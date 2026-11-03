@@ -1,0 +1,46 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Catálogo de herramientas y materiales | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor seccion-productos" id="productos" tabindex="-1">
+    <div class="catalogo-layout">
+        <aside class="filtros-panel" aria-label="Categorías y filtros">
+            <details class="filtros-desplegable" open>
+                <summary><span>Categorías y filtros{% if categoria_actual or busqueda or stock_actual %} · Activos{% endif %}</span><svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></summary>
+                <div class="filtros-interior">
+                    <nav class="indice-categorias" aria-label="Categorías del catálogo">
+                        <h2>Categorías</h2>
+                        {% if categoria_actual %}<a href="{% url 'catalogo:lista' %}?q={{ busqueda|urlencode }}&stock={{ stock_actual|urlencode }}&orden={{ orden_actual|urlencode }}#productos">Todos los productos <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></a>{% endif %}
+                        {% for categoria in categorias %}
+                        <a href="{% url 'catalogo:lista' %}?categoria={{ categoria|urlencode }}&q={{ busqueda|urlencode }}&stock={{ stock_actual|urlencode }}&orden={{ orden_actual|urlencode }}#productos" {% if categoria == categoria_actual %}aria-current="page"{% endif %}>{{ categoria }}{% if categoria == categoria_actual %}<svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg>{% endif %}</a>
+                        {% endfor %}
+                    </nav>
+                    <form id="filtros-catalogo" class="filtros-catalogo" action="#productos" method="get" role="search" aria-label="Filtrar catálogo">
+                        <h2>Filtros</h2>
+                        <input type="hidden" name="categoria" value="{{ categoria_actual }}">
+                        <label for="busqueda-producto">Buscar</label>
+                        <input id="busqueda-producto" name="q" type="search" placeholder="Nombre del producto" value="{{ busqueda }}">
+                        <label for="filtro-stock">Disponibilidad</label>
+                        <select id="filtro-stock" name="stock"><option value="">Todos los productos</option><option value="disponible" {% if stock_actual == 'disponible' %}selected{% endif %}>Con stock</option><option value="agotado" {% if stock_actual == 'agotado' %}selected{% endif %}>Sin stock</option></select>
+                        <button class="boton boton-primario" type="submit">Aplicar filtros</button>
+                        <a class="limpiar-filtros" href="{% url 'catalogo:lista' %}#productos">Limpiar filtros</a>
+                    </form>
+                </div>
+            </details>
+        </aside>
+        <section class="catalogo-resultados" aria-labelledby="titulo-productos">
+            <header class="cabecera-catalogo">
+                <h1 id="titulo-productos">Nuestro catálogo.</h1>
+                <p class="resumen-catalogo"><span><strong>{{ total_productos }}</strong> productos</span><span><strong>{{ con_stock }}</strong> con stock</span><span><strong>{{ sin_stock }}</strong> agotados</span><span><strong>{{ total_categorias }}</strong> categorías</span></p>
+            </header>
+            <div class="barra-resultados">
+                <div><h2>{% if categoria_actual %}{{ categoria_actual }}{% elif busqueda %}Resultados de búsqueda{% else %}Todos los productos{% endif %}</h2><p id="resultado-filtro" aria-live="polite">{{ productos|length }} producto{{ productos|length|pluralize:'s' }}{% if busqueda %} para «{{ busqueda }}»{% endif %}{% if stock_actual == 'disponible' %} · Con stock{% elif stock_actual == 'agotado' %} · Sin stock{% endif %}</p></div>
+                <div class="orden-productos"><label for="orden">Ordenar por</label><select name="orden" id="orden" form="filtros-catalogo" data-auto-submit><option value="">Recomendados</option><option value="precio-asc" {% if orden_actual == 'precio-asc' %}selected{% endif %}>Menor precio</option><option value="precio-desc" {% if orden_actual == 'precio-desc' %}selected{% endif %}>Mayor precio</option><option value="nombre" {% if orden_actual == 'nombre' %}selected{% endif %}>Nombre A–Z</option></select></div>
+            </div>
+            <div class="grilla-productos">
+                {% for producto in productos %}{% include 'catalogo/componentes/tarjeta.html' %}
+                {% empty %}<div class="estado-vacio"><svg class="icono" aria-hidden="true"><use href="#i-search"/></svg><h2>No encontramos productos</h2><p>Prueba otro nombre o revisa todas las categorías.</p><a class="boton boton-primario" href="{% url 'catalogo:lista' %}#productos">Ver todos los productos</a></div>{% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
