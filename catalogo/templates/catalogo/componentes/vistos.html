@@ -1,0 +1,15 @@
+{% load tienda %}{# Lista compacta de los productos vistos (se guardan en la sesión) #}
+{% if vistos %}
+<ul class="lista-vistos">
+    {% for producto in vistos %}
+    <li>
+        <a class="visto" href="{% url 'catalogo:detalle' producto.id %}">
+            <span class="miniatura-producto">{% include 'catalogo/componentes/imagen.html' %}</span>
+            <span class="visto-texto"><strong>{{ producto.nombre }}</strong><span>{{ producto.precio|pesos }}{% if producto.stock == 0 %} · Sin stock{% endif %}</span></span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="texto-secundario">Los últimos 3 productos que abras aparecerán aquí.</p>
+{% endif %}

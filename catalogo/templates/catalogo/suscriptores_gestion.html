@@ -1,0 +1,37 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Suscriptores | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Suscriptores de ofertas</h1>
+            <p>Correos inscritos desde el pie de página o desde la cuenta del cliente.</p>
+        </div>
+        <a class="boton boton-secundario" href="{% url 'catalogo:exportar_suscriptores' %}" download><svg class="icono" aria-hidden="true"><use href="#i-descargar"/></svg>Descargar Excel</a>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <dl class="resumen-inventario resumen-tres">
+        <div><dt>Reciben ofertas</dt><dd>{{ activas }}</dd></div>
+        <div><dt>Dados de baja</dt><dd>{{ inactivas }}</dd></div>
+        <div><dt>Total de correos</dt><dd>{{ suscripciones|length }}</dd></div>
+    </dl>
+
+    <div class="tabla-contenedor" role="region" aria-label="Suscriptores" tabindex="0">
+        <table class="tabla-productos">
+            <thead><tr><th scope="col">Correo</th><th scope="col">Estado</th><th scope="col">Inscrito el</th></tr></thead>
+            <tbody>
+                {% for suscripcion in suscripciones %}
+                <tr>
+                    <td>{{ suscripcion.correo }}</td>
+                    <td>{% if suscripcion.activa %}<span class="estado estado-disponible">Recibe ofertas</span>{% else %}<span class="estado estado-pedido-entregado">Dado de baja</span>{% endif %}</td>
+                    <td>{{ suscripcion.fecha|date:'d-m-Y H:i' }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3"><div class="estado-vacio"><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg><h3>Aún no hay suscriptores</h3><p>Los visitantes se inscriben con el formulario de ofertas del pie de página.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Mis datos | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <a class="volver" href="{% url 'catalogo:cuenta' %}">Volver a mi cuenta</a>
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Mis datos</h1>
+            <p>La información que usamos para tus pedidos, tus consultas y las ofertas.</p>
+        </div>
+        {% if not editando %}<a class="boton boton-primario" href="?editar=1"><svg class="icono" aria-hidden="true"><use href="#i-lapiz"/></svg>Editar mis datos</a>{% endif %}
+    </header>
+
+    <div class="perfil-layout">
+        <!-- Bloqueado: los campos salen deshabilitados. Editando: se pueden cambiar y guardar -->
+        <form class="formulario-panel perfil-formulario{% if not editando %} bloqueado{% endif %}" method="post" action="{% url 'catalogo:editar_perfil' %}" novalidate>
+            {% csrf_token %}
+            {% if editando %}
+            <p class="perfil-estado editando"><svg class="icono" aria-hidden="true"><use href="#i-lapiz"/></svg>Estás editando tus datos. Revisa los cambios y guárdalos al final.</p>
+            {% else %}
+            <p class="perfil-estado"><svg class="icono" aria-hidden="true"><use href="#i-candado"/></svg>Tus datos están protegidos. Para cambiarlos, usa «Editar mis datos».</p>
+            {% endif %}
+            {% include 'catalogo/componentes/resumen_errores.html' %}
+
+            <fieldset class="perfil-grupo">
+                <legend>Datos personales</legend>
+                <div class="campos-grilla">
+                    {% include 'catalogo/componentes/campo.html' with campo=form.nombre %}
+                    {% include 'catalogo/componentes/campo.html' with campo=form.apellido %}
+                    {% include 'catalogo/componentes/campo.html' with campo=form.email %}
+                    <!-- El usuario no es parte del formulario: siempre queda fijo -->
+                    <div class="campo-formulario campo-usuario">
+                        <label for="usuario-fijo">Usuario</label>
+                        <input id="usuario-fijo" type="text" value="{{ user.username }}" disabled aria-describedby="usuario-fijo-ayuda">
+                        <div class="ayuda-campo" id="usuario-fijo-ayuda">Con este usuario inicias sesión. No se puede cambiar.</div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset class="perfil-grupo">
+                <legend>Contacto y retiro</legend>
+                <div class="campos-grilla">
+                    {% include 'catalogo/componentes/campo.html' with campo=form.telefono %}
+                    {% include 'catalogo/componentes/campo.html' with campo=form.comuna %}
+                    {% include 'catalogo/componentes/campo.html' with campo=form.direccion %}
+                </div>
+            </fieldset>
+
+            {% if editando %}
+            <div class="acciones-formulario">
+                <button class="boton boton-primario" type="submit">Guardar cambios</button>
+                <a class="boton boton-secundario" href="{% url 'catalogo:editar_perfil' %}">Cancelar</a>
+            </div>
+            {% endif %}
+        </form>
+
+        <aside class="perfil-lateral">
+            <section class="panel-cuenta" aria-labelledby="titulo-resumen-cuenta">
+                <h2 id="titulo-resumen-cuenta">Tu cuenta</h2>
+                <dl class="datos-cuenta">
+                    <div><dt>Usuario</dt><dd>{{ user.username }}</dd></div>
+                    <div><dt>Cliente desde</dt><dd>{{ user.date_joined|date:'d-m-Y' }}</dd></div>
+                    <div><dt>Pedidos realizados</dt><dd>{{ pedidos_realizados }}</dd></div>
+                    <div><dt>Ofertas por correo</dt><dd>{% if suscrito %}Activas{% else %}Desactivadas{% endif %} · <a class="enlace-tabla" href="{% url 'catalogo:cuenta' %}#titulo-ofertas">Cambiar</a></dd></div>
+                </dl>
+            </section>
+            {% url 'catalogo:consulta' as url_consulta %}
+            {% include 'catalogo/componentes/ayuda_maestro.html' with id_titulo='titulo-ayuda-datos' titulo='¿Algo no cuadra?' texto='Si necesitas cambiar algo que aquí no se puede, como tu usuario, escríbenos y lo revisamos.' enlace=url_consulta texto_enlace='Escribir una consulta' imagen='catalogo/img/landing/maestra.webp' ancho=640 alto=856 %}
+        </aside>
+    </div>
+</div>
+{% endblock %}

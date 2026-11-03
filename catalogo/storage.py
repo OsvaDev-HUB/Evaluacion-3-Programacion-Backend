@@ -1,4 +1,4 @@
-"""Archivo JSON local donde se guardan los pedidos de demostración."""
+"""Escritura segura de archivos JSON (se usa para usuarios.json)."""
 
 import json
 import os
@@ -7,23 +7,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 
-from django.conf import settings
 
 
 _bloqueo = RLock()
-
-
-def ruta_tienda():
-    return Path(settings.TIENDA_DATOS)
-
-
-def leer_tienda():
-    # Solo guarda los pedidos de demostración; los productos están en la base de datos
-    ruta = ruta_tienda()
-    if ruta.exists():
-        datos = json.loads(ruta.read_text(encoding="utf-8"))
-        return {"pedidos": datos.get("pedidos", [])}
-    return {"pedidos": []}
 
 
 @contextmanager
@@ -63,6 +49,3 @@ def editar_json(ruta, cargar):
             else:
                 fcntl.flock(bloqueo.fileno(), fcntl.LOCK_UN)
 
-
-def editar_tienda():
-    return editar_json(ruta_tienda(), leer_tienda)

@@ -482,7 +482,7 @@ textarea { resize: vertical; }
 .resumen-compra dd { margin: 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
 .resumen-compra dl > .total-compra { font-size: 1.5rem; border-top: 1px solid var(--borde-fuerte); padding-top: 24px; font-weight: 600; }
 .resumen-compra > p { font-size: .8rem; margin-top: 18px; color: var(--secundario); }
-.nota-demo { color: var(--secundario); font-size: .8rem; line-height: 1.65; background: var(--panel); padding: 14px; margin-block: 20px; }
+.nota-demo { max-width: none; color: var(--secundario); font-size: .8rem; line-height: 1.65; background: var(--panel); padding: 14px; margin-block: 20px; }
 .lineas-pedido { list-style: none; padding: 0; margin-block: 24px; }
 .lineas-pedido li { display: flex; justify-content: space-between; gap: 20px; font-size: .85rem; border-bottom: 1px solid var(--borde); padding-block: 16px; }
 .lineas-pedido strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -510,7 +510,8 @@ textarea { resize: vertical; }
 .filtros-gestion { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
 .filtros-gestion > div:first-child { flex: 1; max-width: 400px; min-width: 180px; }
 .filtros-gestion input { width: 100%; }
-.tabla-contenedor { overflow-x: auto; border: 1px solid var(--borde); background: var(--papel); scrollbar-width: thin; scrollbar-color: var(--borde-fuerte) transparent; }
+/* position: relative mantiene dentro del scroll los textos ocultos para lectores de pantalla */
+.tabla-contenedor { position: relative; overflow-x: auto; border: 1px solid var(--borde); background: var(--papel); scrollbar-width: thin; scrollbar-color: var(--borde-fuerte) transparent; }
 .tabla-productos { width: 100%; border-collapse: collapse; text-align: left; font-size: .85rem; }
 .tabla-productos th { background: var(--panel); padding: 14px 18px; font-size: .75rem; font-weight: 600; }
 .tabla-productos td { border-top: 1px solid var(--borde); padding: 16px 18px; }
@@ -575,6 +576,191 @@ textarea { resize: vertical; }
 .ranking-producto { display: grid; gap: 3px; justify-items: start; min-width: 0; }
 .ranking-producto a { font-weight: 600; }
 .ranking-monto { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Estados del pedido: cada uno con su texto y un tono que lo distingue */
+.estado-pedido-recibido { color: var(--tinta); background: var(--panel); }
+.estado-pedido-preparando { color: #7a4d00; background: #f6ecd6; }
+.estado-pedido-listo { color: var(--verde); background: #e4eee5; font-weight: 600; }
+.estado-pedido-entregado { color: var(--secundario); background: transparent; border: 1px solid var(--borde); padding: 4px 7px; }
+.estado-pedido-cancelado { color: var(--rojo); background: #f5e9e6; }
+.cabecera-pedido { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+
+/* Rastreo: cuatro marcas cuadradas unidas por una línea, como una huincha */
+.rastreo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 26px 0 6px; padding: 0; list-style: none; }
+.rastreo-paso { position: relative; display: grid; justify-items: center; align-content: start; gap: 10px; text-align: center; }
+.rastreo-paso + .rastreo-paso::before, .rastreo-paso + .rastreo-paso:is(.hecho, .actual)::after { content: ''; position: absolute; top: 10px; left: -50%; right: 50%; height: 2px; margin-top: -1px; background: var(--borde-fuerte); }
+/* El tramo que llega a un paso hecho o actual se rellena de verde desde la izquierda */
+.rastreo-paso + .rastreo-paso:is(.hecho, .actual)::after { background: var(--verde); transform-origin: left; }
+.rastreo-marca { position: relative; z-index: 1; display: grid; place-items: center; width: 20px; height: 20px; background: var(--papel); border: 2px solid var(--borde-fuerte); }
+.rastreo-marca .icono { width: 14px; height: 14px; stroke-width: 2.4; }
+.hecho .rastreo-marca { background: var(--verde); border-color: var(--verde); color: var(--papel); }
+.actual .rastreo-marca { border-color: var(--tinta); }
+.actual .rastreo-marca::after { content: ''; width: 8px; height: 8px; background: var(--tinta); }
+.actual .rastreo-marca::before { content: ''; position: absolute; inset: -2px; border: 2px solid var(--tinta); opacity: 0; pointer-events: none; }
+.rastreo-nombre { max-width: 14ch; color: var(--secundario); font-size: .8rem; line-height: 1.3; }
+.actual .rastreo-nombre { color: var(--tinta); font-weight: 600; }
+.rastreo-cancelado { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 12px 14px; background: #f5e9e6; color: var(--rojo); font-size: .875rem; }
+.rastreo-cancelado .icono { width: 18px; height: 18px; }
+
+/* Cambio de estado (detalle y tabla de pedidos) */
+.cambio-estado { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 24px; padding: 18px; background: var(--panel); }
+.cambio-estado select { min-width: 220px; }
+.cambio-estado-fila { display: flex; align-items: center; gap: 8px; }
+.cambio-estado-fila select { min-height: 40px; padding: 8px 10px; font-size: .85rem; }
+.cambio-estado-fila .boton { min-height: 40px; padding: 8px 14px; }
+.dato-tabla { display: block; margin-top: 4px; color: var(--secundario); font-size: .78rem; }
+
+/* Detalle del admin (pedido y consulta): en el celular es un solo panel, en el computador dos columnas */
+.detalle-admin { display: grid; max-width: 750px; margin: 20px auto; padding: 36px; background: var(--papel); border: 1px solid var(--borde); }
+.detalle-admin-cabecera > p { margin-top: 18px; }
+/* Títulos que solo se muestran en el computador (en el celular siguen disponibles para lectores de pantalla) */
+.titulo-escritorio { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.detalle-admin .cambio-estado { margin-top: 24px; }
+.detalle-admin-acciones { margin-top: 26px; }
+.consulta-admin-fecha { margin-top: 18px; }
+.consulta-admin-respuesta .nota-demo { margin-top: 4px; }
+@media (min-width: 1101px) {
+    .detalle-admin { grid-template-columns: minmax(0, 1fr) 400px; align-items: start; gap: 24px; max-width: none; margin: 0; padding: 0; background: none; border: 0; }
+    .detalle-admin-cabecera { grid-area: cabecera; display: flex; align-items: end; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--borde-fuerte); }
+    .detalle-admin-cabecera > p { margin-top: 0; }
+    .detalle-admin-bloque { margin: 0; padding: 26px 30px; background: var(--papel); border: 1px solid var(--borde); }
+    .titulo-escritorio { position: static; width: auto; height: auto; overflow: visible; clip-path: none; margin-bottom: 4px; font-size: 1.5rem; }
+    .detalle-admin .datos-cliente-pedido { grid-template-columns: 1fr; }
+    .detalle-admin-acciones { grid-area: acciones; margin-top: 0; }
+    .detalle-admin-acciones .boton { width: 100%; }
+
+    /* Pedido: seguimiento y productos a la izquierda; estado y cliente a la derecha */
+    .pedido-admin { grid-template-areas: "cabecera cabecera" "rastreo estado" "productos cliente" "productos acciones"; }
+    .pedido-admin-rastreo { grid-area: rastreo; }
+    .pedido-admin-rastreo .rastreo { margin-bottom: 0; }
+    .pedido-admin .cambio-estado { grid-area: estado; flex-direction: column; align-items: stretch; margin-top: 0; background: var(--panel); border-color: var(--panel); }
+    .pedido-admin .cambio-estado select { width: 100%; }
+    .pedido-admin-cliente { grid-area: cliente; }
+    .pedido-admin-productos { grid-area: productos; }
+    .pedido-admin-productos .lineas-pedido { margin-top: 12px; }
+
+    /* Consulta: mensaje y respuesta a la izquierda; datos del cliente a la derecha */
+    .consulta-admin { grid-template-areas: "cabecera cabecera" "mensaje cliente" "respuesta cliente"; }
+    .consulta-admin-mensaje { grid-area: mensaje; }
+    .consulta-admin-respuesta { grid-area: respuesta; }
+    .consulta-admin-cliente { grid-area: cliente; }
+    .consulta-admin-cliente .datos-cliente-pedido { margin-top: 18px; }
+}
+
+/* Filtro por estado: el elegido se marca con el naranja de selección */
+.filtro-estados { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.filtro-estados a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid var(--borde-fuerte); border-radius: 2px; font-size: .85rem; transition: background-color var(--rapida), border-color var(--rapida), color var(--rapida); }
+.filtro-estados a span { color: var(--secundario); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.filtro-estados a:hover { background: var(--panel); }
+.filtro-estados a[aria-current] { border-color: var(--acento); color: var(--acento); font-weight: 600; box-shadow: inset 0 0 0 1px var(--acento); }
+.filtro-estados a[aria-current] span { color: currentColor; }
+
+/* Cancelar pedido con confirmación en la misma página */
+.confirmar-cancelacion > summary { list-style: none; cursor: pointer; }
+.confirmar-cancelacion > summary::-webkit-details-marker { display: none; }
+.boton-texto-peligro { color: var(--rojo); background: transparent; text-decoration: underline; text-underline-offset: 4px; }
+.boton-texto-peligro:hover { background: #f5e9e6; }
+.confirmar-cancelacion[open] { flex-basis: 100%; }
+.confirmar-cancelacion[open] > summary { text-decoration: none; }
+.confirmar-cancelacion-panel { margin-top: 10px; padding: 16px; background: #fbf3f1; border: 1px solid #d1a5a0; }
+.confirmar-cancelacion-panel p { margin-bottom: 14px; font-size: .875rem; }
+
+/* Mi cuenta */
+.cuenta-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; align-items: start; gap: 28px; }
+.cuenta-principal, .cuenta-lateral { display: grid; gap: 28px; }
+.panel-cuenta { padding: 28px 30px; background: var(--papel); border: 1px solid var(--borde); }
+.panel-cuenta > h2 { margin-bottom: 18px; font-size: 1.5rem; }
+.pedido-cuenta, .consulta-cuenta { padding-block: 22px; border-top: 1px solid var(--borde); }
+.panel-cuenta > h2 + :is(.pedido-cuenta, .consulta-cuenta) { padding-top: 0; border-top: 0; }
+.pedido-cuenta-cabecera { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px 18px; }
+.pedido-cuenta-cabecera h3, .consulta-cuenta h3 { font-size: 1.2rem; }
+.pedido-cuenta-cabecera p, .consulta-cuenta-fecha { margin-top: 4px; color: var(--secundario); font-size: .8rem; }
+.pedido-cuenta-total { font-size: 1.1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.consulta-cuenta > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.consulta-mensaje { margin: 14px 0 0; padding: 12px 14px; background: var(--fondo); border: 1px solid var(--borde); font-size: .875rem; overflow-wrap: anywhere; }
+.consulta-respuesta { margin-top: 10px; padding: 14px; background: #e4eee5; font-size: .875rem; overflow-wrap: anywhere; }
+.consulta-respuesta-titulo { margin-bottom: 6px; color: var(--verde); font-size: .8rem; font-weight: 600; }
+.datos-cuenta { display: grid; gap: 14px; margin: 0 0 22px; }
+.datos-cuenta dt { color: var(--secundario); font-size: .78rem; }
+.datos-cuenta dd { margin: 3px 0 0; font-size: .9rem; overflow-wrap: anywhere; }
+.panel-cuenta form + form, .panel-cuenta .texto-secundario + form { margin-top: 16px; }
+.lista-vistos { display: grid; margin: 0; padding: 0; list-style: none; }
+.lista-vistos li + li { border-top: 1px solid var(--borde); }
+.visto { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 14px; padding-block: 10px; }
+.visto .miniatura-producto { width: 56px; height: 50px; }
+.visto-texto strong { display: block; font-size: .875rem; transition: color var(--rapida); }
+.visto-texto span { color: var(--secundario); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.visto:hover strong { color: var(--acento); }
+.vistos-recientes .grilla-productos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Formulario de consultas */
+.consulta-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; align-items: start; gap: 24px; }
+/* Campos en dos columnas (consulta y mis datos); los largos usan todo el ancho */
+.campos-grilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; margin-top: 22px; }
+.campos-grilla > :is(.mensaje, .campo-producto, .campo-mensaje, .campo-direccion) { grid-column: 1 / -1; }
+/* En una grilla los márgenes no se juntan: cada campo deja espacio solo abajo */
+.campos-grilla .campo-formulario { margin-block: 0 22px; }
+.campos-grilla > .mensaje { margin-bottom: 22px; }
+
+/* Mis datos: formulario con grupos y columna lateral */
+.perfil-layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; align-items: start; gap: 24px; }
+.perfil-lateral, .consulta-lateral { display: grid; gap: 24px; }
+/* Celda de ayuda con un maestro: la foto llega al borde derecho e inferior, donde está su corte */
+.panel-ayuda { display: grid; grid-template-columns: minmax(0, 1fr) 150px; align-items: end; gap: 8px; padding: 26px 0 0 30px; overflow: hidden; background: var(--papel); border: 1px solid var(--borde); }
+.panel-ayuda-texto { align-self: center; padding-bottom: 26px; }
+.panel-ayuda h2 { font-size: 1.35rem; }
+.panel-ayuda p { margin-top: 8px; color: var(--secundario); font-size: .875rem; }
+.panel-ayuda a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; font-size: .875rem; font-weight: 600; }
+.panel-ayuda img { display: block; width: 100%; height: auto; max-height: 230px; object-fit: contain; object-position: right bottom; }
+.perfil-estado { display: flex; align-items: center; gap: 12px; max-width: none; margin-bottom: 6px; padding: 12px 14px; background: var(--panel); color: var(--secundario); font-size: .875rem; }
+.perfil-estado .icono { width: 18px; height: 18px; color: var(--tinta); }
+.perfil-estado.editando { background: #f6ecd6; color: #7a4d00; }
+.perfil-estado.editando .icono { color: currentColor; }
+.perfil-grupo { min-width: 0; margin: 0; padding: 0; border: 0; }
+.perfil-grupo + .perfil-grupo { margin-top: 4px; padding-top: 22px; border-top: 1px solid var(--borde); }
+.perfil-grupo legend { float: left; width: 100%; margin-top: 22px; padding: 0; font: 600 1.35rem/1.1 var(--titulo); }
+.perfil-grupo + .perfil-grupo legend { margin-top: 0; }
+.perfil-grupo legend + * { clear: both; }
+/* Campos bloqueados: se leen bien, pero se ve que no se pueden escribir */
+.perfil-formulario :is(input, select, textarea):disabled { background: var(--fondo); border-color: var(--borde); color: var(--tinta); -webkit-text-fill-color: var(--tinta); opacity: 1; cursor: default; }
+.perfil-formulario .campo-formulario:has(:disabled) label::after { content: ''; display: inline-block; width: 12px; height: 12px; margin-left: 8px; vertical-align: -1px; background: var(--secundario); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='1'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat; }
+.perfil-grupo .campos-grilla { margin-top: 0; padding-top: 14px; }
+/* Solo el último campo del último grupo pierde su margen (cuando no hay botones abajo) */
+.perfil-formulario.bloqueado .perfil-grupo:last-of-type .campo-formulario:last-child { margin-bottom: 0; }
+.consulta-layout .formulario-panel > .boton { margin-top: 8px; }
+.enlaces-ficha { display: flex; flex-wrap: wrap; gap: 0 24px; }
+
+/* Bandeja de consultas del administrador */
+.lista-consultas { display: grid; background: var(--papel); border: 1px solid var(--borde); }
+.consulta-fila { display: grid; grid-template-columns: 240px minmax(0, 1fr) auto; align-items: start; gap: 24px; padding: 20px 24px; }
+.consulta-fila + .consulta-fila { border-top: 1px solid var(--borde); }
+.consulta-fila-datos h2 { font-size: 1.15rem; }
+.consulta-fila-datos p { margin-top: 3px; color: var(--secundario); font-size: .8rem; overflow-wrap: anywhere; }
+.consulta-fila-producto { margin-bottom: 6px; font-size: .85rem; font-weight: 600; }
+.consulta-fila-mensaje p:last-child { font-size: .875rem; overflow-wrap: anywhere; }
+.consulta-fila-acciones { display: flex; flex-direction: column; align-items: end; gap: 12px; }
+.lista-consultas .estado-vacio { border: 0; }
+.contador-gestion { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; background: var(--acento); color: var(--papel); border-radius: 2px; font-size: .72rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.menu-cuenta-grupo .contador-gestion { margin-left: auto; }
+
+/* Reportes de ventas y suscriptores */
+.resumen-tres { grid-template-columns: repeat(3, 1fr); }
+.leyenda-stock .fila-ingresos { grid-template-columns: minmax(0, 1fr) minmax(160px, 45%); }
+.fila-ingresos .barra-reporte { min-width: 0; }
+.leyenda-stock .fila-estado { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Ofertas en el pie de página */
+.pie-ofertas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); align-items: center; gap: 24px 48px; padding-block: 40px; border-bottom: 1px solid #4f5950; }
+.pie-ofertas h2 { font-size: 1.75rem; }
+.pie-ofertas p { max-width: 52ch; margin-top: 8px; color: #c5cdc6; font-size: .875rem; }
+.form-ofertas { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.form-ofertas input { width: 100%; min-height: 48px; border-color: #737b73; background: transparent; color: var(--papel); }
+.form-ofertas input::placeholder { color: #c5ccc5; }
+.pie-sitio .form-ofertas :focus-visible { outline-color: #f0a48c; }
+.mensaje-ofertas { grid-column: 1 / -1; max-width: none; margin-top: 2px; font-size: .85rem; }
+.mensaje-ofertas.success { color: #9fd0ae; }
+.mensaje-ofertas.info { color: #c5cdc6; }
+.mensaje-ofertas.error { color: #f4b4a0; }
 .resumen-inventario .dato-agotado { color: var(--rojo); }
 .resumen-inventario .dato-critico { color: #7a4d00; }
 .tabla-productos td .estado-vacio { border: 0; padding-block: 48px; }
@@ -604,6 +790,9 @@ textarea { resize: vertical; }
     .boton-compra { font-size: .74rem; padding-inline: 10px; }
 }
 @media (max-width: 1100px) {
+    .cuenta-layout, .consulta-layout, .perfil-layout, .pie-ofertas { grid-template-columns: 1fr; }
+    .consulta-fila { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .consulta-fila-acciones { flex-direction: row; align-items: center; justify-content: space-between; }
     .reporte-secciones { grid-template-columns: 1fr; }
     .reporte-seccion + .reporte-seccion { border-left: 1px solid var(--borde); border-top: 0; }
     .contenedor { width: calc(100% - 48px); }
@@ -740,6 +929,19 @@ textarea { resize: vertical; }
     .resumen-inventario > div { padding: 20px; }
     .resumen-inventario dd { font-size: 1.5rem; }
     .reporte-seccion { padding: 22px 18px 16px; }
+    .panel-cuenta { padding: 22px 18px; }
+    .detalle-admin { padding: 26px 20px; }
+    .pedido-cuenta-cabecera { grid-template-columns: minmax(0, 1fr) auto; }
+    .pedido-cuenta-cabecera > .estado { grid-row: 2; justify-self: start; }
+    .rastreo-nombre { font-size: .72rem; }
+    .form-ofertas { grid-template-columns: 1fr; }
+    .campos-grilla { grid-template-columns: 1fr; }
+    .panel-ayuda { grid-template-columns: minmax(0, 1fr) 120px; padding-left: 18px; }
+    .panel-ayuda img { max-height: 190px; }
+    .leyenda-stock .fila-ingresos { grid-template-columns: 1fr; gap: 8px; }
+    .cambio-estado-fila { flex-wrap: wrap; }
+    .vistos-recientes .grilla-productos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resumen-tres > div:nth-child(3) { border-left: 0; }
     .ranking-valor li { grid-template-columns: 2ch 44px minmax(0, 1fr); }
     .ranking-valor .miniatura-producto { width: 44px; height: 40px; }
     .ranking-monto { grid-column: 3; }
@@ -887,6 +1089,26 @@ textarea { resize: vertical; }
     from { opacity: 0; transform: translateX(-14px); }
     to { opacity: 1; transform: translateX(0); }
 }
+@keyframes subir-maestro {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes aparecer-marca {
+    from { opacity: 0; transform: scale(.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes trazar-check {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+}
+@keyframes aparecer-centro {
+    from { opacity: 0; transform: scale(.6); }
+    to { opacity: 1; transform: scale(1); }
+}
+@keyframes anillo-actual {
+    from { opacity: .45; transform: scale(1); }
+    to { opacity: 0; transform: scale(1.9); }
+}
 @keyframes entrada-resumen {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -897,6 +1119,17 @@ textarea { resize: vertical; }
     .movimiento-activo .resumen-catalogo { animation: entrada-resumen 400ms ease-out 140ms backwards; }
     .movimiento-activo :is(.acceso-administrador, .beneficios-cuenta)::before { transform-origin: left; animation: desplegar-regla 900ms cubic-bezier(.22, 1, .36, 1) 180ms both; }
     .movimiento-activo .presentacion-regla::before { transform-origin: left; animation: desplegar-regla 900ms cubic-bezier(.22, 1, .36, 1) 160ms both; }
+    /* Rastreo: cada tramo verde se dibuja hasta su paso, uno tras otro (90 ms entre pasos) */
+    .movimiento-activo .rastreo-paso:is(.hecho, .actual)::after { animation: desplegar-regla 240ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms - 90ms) both; }
+    .movimiento-activo .rastreo-paso:is(.hecho, .actual) .rastreo-marca { animation: aparecer-marca 200ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms) both; }
+    /* El check se traza como si se dibujara a mano */
+    .movimiento-activo .hecho .rastreo-marca .icono { stroke-dasharray: 1; animation: trazar-check 220ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms + 120ms) both; }
+    /* El paso actual aparece al final y deja un anillo que se abre una vez, para marcar dónde va el pedido */
+    .movimiento-activo .actual .rastreo-marca::after { animation: aparecer-centro 200ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms + 120ms) both; }
+    .movimiento-activo .actual .rastreo-marca::before { animation: anillo-actual 700ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms + 260ms) both; }
+    .movimiento-activo .actual .rastreo-nombre { animation: entrada-resumen 200ms ease-out calc(var(--paso) * 90ms + 120ms) both; }
+    .movimiento-activo .rastreo-cancelado { animation: entrada-resumen 200ms ease-out both; }
+    .movimiento-activo .panel-ayuda img { animation: subir-maestro var(--entrada) 160ms both; }
 }
 @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }

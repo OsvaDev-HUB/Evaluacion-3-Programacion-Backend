@@ -1,0 +1,14 @@
+{# Rastreo del pedido: cuatro pasos sobre una línea, igual que una huincha #}
+{% if pedido.estado == 'cancelado' %}
+<p class="rastreo-cancelado"><svg class="icono" aria-hidden="true"><use href="#i-menos"/></svg>Pedido cancelado. Sus productos volvieron a la tienda.</p>
+{% else %}
+<ol class="rastreo" aria-label="Rastreo del pedido">
+    {% for paso in pedido.pasos %}
+    {# --paso ordena la animación: cada paso aparece un poco después del anterior #}
+    <li class="rastreo-paso{% if paso.hecho %} hecho{% elif paso.actual %} actual{% endif %}" style="--paso: {{ forloop.counter0 }}" {% if paso.actual %}aria-current="step"{% endif %}>
+        <span class="rastreo-marca" aria-hidden="true">{% if paso.hecho %}<svg class="icono"><use href="#i-check"/></svg>{% endif %}</span>
+        <span class="rastreo-nombre">{{ paso.nombre }}</span>
+    </li>
+    {% endfor %}
+</ol>
+{% endif %}

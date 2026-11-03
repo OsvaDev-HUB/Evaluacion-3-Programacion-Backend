@@ -6,14 +6,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from .models import Producto
-from .storage import leer_tienda
+from .models import ConsultaCliente, DetallePedido, Pedido, PerfilCliente, Producto, Suscripcion
 from .views import cargar_productos
 from .usuarios import agregar_usuario, buscar_usuario, cargar_usuarios, editar_usuarios
 
 
 class CatalogoAisladoMixin:
-    """Carga la fixture de productos y aísla los archivos JSON de usuarios y pedidos."""
+    """Carga la fixture de productos y aísla el archivo JSON de usuarios."""
 
     fixtures = ["productos"]
 
@@ -27,7 +26,6 @@ class CatalogoAisladoMixin:
             encoding="utf-8",
         )
         configuracion = override_settings(
-            TIENDA_DATOS=Path(temporal.name) / "tienda.json",
             USUARIOS_DATOS=usuarios,
         )
         configuracion.enable()
@@ -350,16 +348,18 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         self.client.force_login(self.cliente)
         self.agregar(cantidad=2)
         response = self.confirmar()
-        pedido = leer_tienda()["pedidos"][0]
-        self.assertRedirects(response, reverse("catalogo:pedido", args=[pedido["id"]]))
-        self.assertEqual(pedido["total"], 25980)
+        pedido = Pedido.objects.get()
+        self.assertRedirects(response, reverse("catalogo:pedido", args=[pedido.codigo]))
+        self.assertEqual(pedido.total, 25980)
+        self.assertEqual(pedido.estado, Pedido.RECIBIDO)
+        self.assertEqual(pedido.detalles.get().cantidad, 2)
         self.assertEqual(cargar_productos()[0]["stock"], 16)
         self.assertEqual(self.client.session["carrito"], {})
         response = self.client.get(reverse("catalogo:cuenta"))
-        self.assertContains(response, pedido["id"])
+        self.assertContains(response, pedido.codigo)
         # Una repetición del envío no duplica el pedido ni el descuento de stock.
-        self.client.post(reverse("catalogo:checkout"), {"token": pedido["token"]})
-        self.assertEqual(len(leer_tienda()["pedidos"]), 1)
+        self.client.post(reverse("catalogo:checkout"), {"token": pedido.token})
+        self.assertEqual(Pedido.objects.count(), 1)
         self.assertEqual(cargar_productos()[0]["stock"], 16)
 
     def test_checkout_rechaza_token_incorrecto_y_contacto_invalido(self):
@@ -369,7 +369,7 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         self.assertContains(response, "Esta confirmación expiró")
         response = self.client.post(reverse("catalogo:checkout"), {"nombre": "Cliente", "email": "invalido", "telefono": "x"})
         self.assertTrue(response.context["form"].errors)
-        self.assertEqual(leer_tienda()["pedidos"], [])
+        self.assertFalse(Pedido.objects.exists())
         self.assertEqual(cargar_productos()[0]["stock"], 18)
 
     def test_segundo_comprador_no_puede_comprar_stock_agotado(self):
@@ -383,14 +383,14 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         response = otro_client.get(reverse("catalogo:checkout"))
         self.assertRedirects(response, reverse("catalogo:carrito"))
         self.assertEqual(cargar_productos()[0]["stock"], 0)
-        self.assertEqual(len(leer_tienda()["pedidos"]), 1)
+        self.assertEqual(Pedido.objects.count(), 1)
 
     def test_pedido_es_privado_para_su_cliente_y_administradores(self):
         self.client.force_login(self.cliente)
         self.agregar()
         self.confirmar()
-        pedido = leer_tienda()["pedidos"][0]
-        url = reverse("catalogo:pedido", args=[pedido["id"]])
+        pedido = Pedido.objects.get()
+        url = reverse("catalogo:pedido", args=[pedido.codigo])
         response = self.client.get(url)
         self.assertContains(response, "Tu pedido quedó registrado")
         self.assertContains(response, "Gracias, Cliente de prueba.")
@@ -400,15 +400,15 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         self.assertNotContains(response, "Volver a pedidos de la tienda")
         self.client.force_login(self.otro)
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertNotContains(self.client.get(reverse("catalogo:cuenta")), pedido["id"])
+        self.assertNotContains(self.client.get(reverse("catalogo:cuenta")), pedido.codigo)
         self.client.force_login(self.administrador)
         response = self.client.get(url)
         self.assertContains(response, "Detalle del pedido")
         self.assertContains(response, "Datos del cliente")
-        self.assertContains(response, pedido["contacto"]["nombre"])
-        self.assertContains(response, pedido["contacto"]["email"])
-        self.assertContains(response, pedido["contacto"]["telefono"])
-        self.assertContains(response, pedido["fecha"][:10])
+        self.assertContains(response, pedido.nombre)
+        self.assertContains(response, pedido.email)
+        self.assertContains(response, pedido.telefono)
+        self.assertContains(response, f"{pedido.fecha:%Y-%m-%d}")
         self.assertContains(response, "Productos del pedido")
         self.assertContains(response, "$12.990 por unidad")
         self.assertContains(response, "Volver a pedidos de la tienda")
@@ -416,7 +416,7 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         self.assertNotContains(response, "Gracias,")
         self.assertNotContains(response, "Seguir comprando")
         self.assertNotContains(response, "Mis pedidos")
-        self.assertContains(self.client.get(reverse("catalogo:pedidos_gestion")), pedido["id"])
+        self.assertContains(self.client.get(reverse("catalogo:pedidos_gestion")), pedido.codigo)
 
     def test_busqueda_categoria_stock_y_orden_funcionan_sin_javascript(self):
         response = self.client.get(reverse("catalogo:lista"), {"q": "latex"})
@@ -629,3 +629,251 @@ class CredencialesJSONTests(CatalogoAisladoMixin, TestCase):
             response = self.ingresar()
         self.assertTrue(response.context["form"].errors)
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class ClientesTests(CatalogoAisladoMixin, TestCase):
+    """Etapa 3: consultas, sesiones, pedidos con estado, perfil, ofertas y ventas."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cliente = get_user_model().objects.create_user("comprador", first_name="Ana", email="ana@example.test", password="Clave-prueba-432!")
+        cls.otro = get_user_model().objects.create_user("otro", password="Clave-prueba-432!")
+        cls.administrador = get_user_model().objects.create_user("encargado", is_staff=True, password="Clave-prueba-432!")
+
+    def comprar(self, producto_id=1, cantidad=1):
+        """Agrega un producto al carrito y confirma el pedido; devuelve el Pedido creado."""
+        self.client.post(reverse("catalogo:modificar_carrito", args=[producto_id]), {"cantidad": cantidad})
+        token = self.client.get(reverse("catalogo:checkout")).context["token"]
+        self.client.post(reverse("catalogo:checkout"), {"nombre": "Ana", "email": "ana@example.test",
+                                                        "telefono": "+56 9 1234 5678", "token": token})
+        return Pedido.objects.latest("fecha")
+
+    # --- Consultas (ModelForm) ---
+
+    def test_consulta_rechaza_datos_invalidos_con_mensajes_claros(self):
+        casos = [
+            ({"nombre": "", "correo": "", "mensaje": ""}, ["nombre", "correo", "mensaje"]),
+            ({"nombre": "Ana", "correo": "correo-malo", "mensaje": "Mensaje suficientemente largo"}, ["correo"]),
+            ({"nombre": "A", "correo": "ana@example.test", "mensaje": "corto"}, ["nombre", "mensaje"]),
+            ({"nombre": "Ana", "correo": "ana@example.test", "mensaje": "          "}, ["mensaje"]),
+        ]
+        for datos, campos in casos:
+            response = self.client.post(reverse("catalogo:consulta"), datos)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(sorted(response.context["form"].errors), sorted(campos))
+        self.assertContains(response, "Revisa los datos del formulario.")
+        self.assertFalse(ConsultaCliente.objects.exists())
+
+    def test_consulta_valida_se_guarda_y_muestra_confirmacion(self):
+        response = self.client.post(reverse("catalogo:consulta"), {
+            "nombre": "Ana", "correo": "ana@example.test", "producto": 8, "mensaje": "¿La sierra trae disco incluido?"})
+        consulta = ConsultaCliente.objects.get()
+        self.assertRedirects(response, reverse("catalogo:consulta_enviada"))
+        self.assertEqual(consulta.producto_id, 8)
+        self.assertIsNone(consulta.usuario)
+        self.assertIsNotNone(consulta.fecha)
+        response = self.client.get(reverse("catalogo:consulta_enviada"))
+        self.assertContains(response, "Recibimos tu consulta")
+        self.assertContains(response, "ana@example.test")
+        # Otra sesión no puede ver la confirmación
+        self.assertRedirects(Client().get(reverse("catalogo:consulta_enviada")), reverse("catalogo:consulta"))
+
+    def test_consulta_desde_la_ficha_y_con_sesion_queda_en_mi_cuenta(self):
+        self.client.force_login(self.cliente)
+        response = self.client.get(reverse("catalogo:consulta"), {"producto": 21})
+        self.assertEqual(response.context["form"].initial["producto"], 21)
+        self.assertEqual(response.context["form"].initial["correo"], "ana@example.test")
+        self.client.post(reverse("catalogo:consulta"), {
+            "nombre": "Ana", "correo": "ana@example.test", "producto": 21, "mensaje": "¿Sirve para exterior?"})
+        self.assertEqual(ConsultaCliente.objects.get().usuario, self.cliente)
+        self.assertContains(self.client.get(reverse("catalogo:cuenta")), "¿Sirve para exterior?")
+
+    def test_formularios_exigen_token_csrf(self):
+        cliente_csrf = Client(enforce_csrf_checks=True)
+        datos = {"nombre": "Ana", "correo": "ana@example.test", "mensaje": "Mensaje de prueba válido"}
+        self.assertEqual(cliente_csrf.post(reverse("catalogo:consulta"), datos).status_code, 403)
+        self.assertEqual(cliente_csrf.post(reverse("catalogo:suscribirse"), {"correo": "a@b.cl"}).status_code, 403)
+        # Con el token del formulario sí se acepta
+        response = cliente_csrf.get(reverse("catalogo:consulta"))
+        self.assertContains(response, "csrfmiddlewaretoken")
+        token = response.cookies["csrftoken"].value
+        response = cliente_csrf.post(reverse("catalogo:consulta"), {**datos, "csrfmiddlewaretoken": token})
+        self.assertRedirects(response, reverse("catalogo:consulta_enviada"))
+
+    def test_admin_responde_consultas_y_el_cliente_ve_la_respuesta(self):
+        consulta = ConsultaCliente.objects.create(nombre="Ana", correo="ana@example.test", mensaje="¿Tienen despacho?", usuario=self.cliente)
+        ruta = reverse("catalogo:responder_consulta", args=[consulta.pk])
+        self.client.force_login(self.cliente)
+        self.assertEqual(self.client.get(reverse("catalogo:consultas_gestion")).status_code, 403)
+        self.assertEqual(self.client.post(ruta, {"respuesta": "Hola"}).status_code, 403)
+        self.client.force_login(self.administrador)
+        self.assertEqual(self.client.get(reverse("catalogo:consultas_gestion")).context["conteo"]["pendientes"], 1)
+        response = self.client.post(ruta, {"respuesta": "no"})
+        self.assertIn("respuesta", response.context["form"].errors)
+        self.client.post(ruta, {"respuesta": "Solo retiro en tienda por ahora."})
+        consulta.refresh_from_db()
+        self.assertTrue(consulta.respondida)
+        self.assertIsNotNone(consulta.fecha_respuesta)
+        self.assertEqual(self.client.get(reverse("catalogo:consultas_gestion")).context["conteo"]["pendientes"], 0)
+        self.client.force_login(self.cliente)
+        self.assertContains(self.client.get(reverse("catalogo:cuenta")), "Solo retiro en tienda por ahora.")
+
+    # --- Sesión: últimos 3 productos vistos ---
+
+    def test_sesion_guarda_los_ultimos_tres_productos_vistos(self):
+        for producto_id in (5, 12, 21, 8):
+            self.client.get(reverse("catalogo:detalle", args=[producto_id]))
+        # El más reciente primero y solo 3
+        self.assertEqual(self.client.session["vistos"], [8, 21, 12])
+        # Volver a uno visto lo sube al primer lugar sin repetirlo
+        response = self.client.get(reverse("catalogo:detalle", args=[12]))
+        self.assertEqual(self.client.session["vistos"], [12, 8, 21])
+        # La ficha muestra los anteriores, sin el producto actual
+        self.assertEqual([p.id for p in response.context["vistos"]], [8, 21])
+        # Al iniciar sesión se conservan los vistos (como el carrito) y Mi cuenta los muestra
+        self.client.force_login(self.cliente)
+        self.client.get(reverse("catalogo:detalle", args=[3]))
+        self.assertEqual([p.id for p in self.client.get(reverse("catalogo:cuenta")).context["vistos"]], [3, 12, 8])
+
+    # --- Pedidos con estado y rastreo ---
+
+    def test_cliente_cancela_pedido_recibido_y_vuelve_el_stock(self):
+        self.client.force_login(self.cliente)
+        pedido = self.comprar(cantidad=2)
+        self.assertEqual(Producto.objects.get(pk=1).stock, 16)
+        self.assertContains(self.client.get(reverse("catalogo:pedido", args=[pedido.codigo])), "Cancelar pedido")
+        # Otro cliente no puede cancelarlo
+        self.client.force_login(self.otro)
+        self.assertEqual(self.client.post(reverse("catalogo:cancelar_pedido", args=[pedido.codigo])).status_code, 404)
+        self.client.force_login(self.cliente)
+        self.assertEqual(self.client.get(reverse("catalogo:cancelar_pedido", args=[pedido.codigo])).status_code, 405)
+        self.client.post(reverse("catalogo:cancelar_pedido", args=[pedido.codigo]))
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.CANCELADO)
+        self.assertEqual(Producto.objects.get(pk=1).stock, 18)
+        # Cancelar dos veces no devuelve el stock dos veces
+        self.client.post(reverse("catalogo:cancelar_pedido", args=[pedido.codigo]))
+        self.assertEqual(Producto.objects.get(pk=1).stock, 18)
+
+    def test_admin_avanza_el_estado_y_el_cliente_ve_el_rastreo(self):
+        self.client.force_login(self.cliente)
+        pedido = self.comprar()
+        ruta = reverse("catalogo:cambiar_estado_pedido", args=[pedido.codigo])
+        self.assertEqual(self.client.post(ruta, {"estado": "entregado"}).status_code, 403)
+        self.client.force_login(self.administrador)
+        self.client.post(ruta, {"estado": "preparando"})
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.PREPARANDO)
+        self.assertEqual([p["hecho"] for p in pedido.pasos()], [True, False, False, False])
+        self.client.force_login(self.cliente)
+        response = self.client.get(reverse("catalogo:pedido", args=[pedido.codigo]))
+        self.assertContains(response, 'aria-current="step"')
+        self.assertNotContains(response, "Cancelar pedido")
+        # Ya en preparación, el cliente no puede cancelarlo
+        self.client.post(reverse("catalogo:cancelar_pedido", args=[pedido.codigo]))
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.PREPARANDO)
+
+    def test_admin_cancela_devuelve_stock_y_no_reactiva_ni_cancela_entregados(self):
+        self.client.force_login(self.cliente)
+        cancelado = self.comprar(cantidad=3)
+        entregado = self.comprar(producto_id=2)
+        self.client.force_login(self.administrador)
+        self.client.post(reverse("catalogo:cambiar_estado_pedido", args=[cancelado.codigo]), {"estado": "cancelado"})
+        self.assertEqual(Producto.objects.get(pk=1).stock, 18)
+        self.client.post(reverse("catalogo:cambiar_estado_pedido", args=[cancelado.codigo]), {"estado": "recibido"})
+        cancelado.refresh_from_db()
+        self.assertEqual(cancelado.estado, Pedido.CANCELADO)
+        self.client.post(reverse("catalogo:cambiar_estado_pedido", args=[entregado.codigo]), {"estado": "entregado"})
+        stock = Producto.objects.get(pk=2).stock
+        self.client.post(reverse("catalogo:cambiar_estado_pedido", args=[entregado.codigo]), {"estado": "cancelado"})
+        entregado.refresh_from_db()
+        self.assertEqual(entregado.estado, Pedido.ENTREGADO)
+        self.assertEqual(Producto.objects.get(pk=2).stock, stock)
+        # Filtro por estado en la lista de pedidos
+        response = self.client.get(reverse("catalogo:pedidos_gestion"), {"estado": "cancelado"})
+        self.assertEqual(list(response.context["pedidos"]), [cancelado])
+
+    # --- Perfil y ofertas ---
+
+    def test_perfil_guarda_datos_y_los_usa_en_el_checkout(self):
+        self.client.force_login(self.cliente)
+        response = self.client.post(reverse("catalogo:editar_perfil"), {
+            "nombre": "Ana", "email": "ana@example.test", "telefono": "abc", "comuna": "", "direccion": ""})
+        self.assertIn("telefono", response.context["form"].errors)
+        response = self.client.post(reverse("catalogo:editar_perfil"), {
+            "nombre": "Ana María", "email": "ana.maria@example.test", "telefono": "+56 9 5555 4444",
+            "comuna": "Ñuñoa", "direccion": "Los Aromos 345", "apellido": "Rojas"})
+        self.assertRedirects(response, reverse("catalogo:editar_perfil"))
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.last_name, "Rojas")
+        # Después de guardar, los campos se muestran bloqueados hasta apretar "Editar"
+        response = self.client.get(reverse("catalogo:editar_perfil"))
+        self.assertFalse(response.context["editando"])
+        self.assertTrue(all(campo.disabled for campo in response.context["form"].fields.values()))
+        self.assertTrue(self.client.get(reverse("catalogo:editar_perfil"), {"editar": 1}).context["editando"])
+        self.assertEqual(PerfilCliente.objects.get(usuario=self.cliente).comuna, "Ñuñoa")
+        # El nombre y el correo también quedan en usuarios.json (el login los relee de ahí)
+        registro = buscar_usuario("comprador")
+        self.assertEqual((registro["nombre"], registro["email"]), ("Ana María", "ana.maria@example.test"))
+        self.client.post(reverse("catalogo:modificar_carrito", args=[1]), {"cantidad": 1})
+        self.assertEqual(self.client.get(reverse("catalogo:checkout")).context["form"].initial["telefono"], "+56 9 5555 4444")
+
+    def test_suscripcion_desde_el_pie_y_desde_la_cuenta(self):
+        response = self.client.post(reverse("catalogo:suscribirse"), {"correo": "Vecina@Correo.cl", "next": "/catalogo/"})
+        self.assertRedirects(response, "/catalogo/#ofertas", fetch_redirect_response=False)
+        self.assertTrue(Suscripcion.objects.get(correo="vecina@correo.cl").activa)
+        self.client.post(reverse("catalogo:suscribirse"), {"correo": "vecina@correo.cl"})
+        self.assertEqual(Suscripcion.objects.count(), 1)
+        response = self.client.post(reverse("catalogo:suscribirse"), {"correo": "no-es-correo"}, follow=True)
+        self.assertContains(response, "Revisa el correo")
+        self.assertEqual(Suscripcion.objects.count(), 1)
+        # Desde la cuenta se activa y se desactiva
+        self.client.force_login(self.cliente)
+        self.client.post(reverse("catalogo:cambiar_suscripcion"), {"activa": "1"})
+        self.assertTrue(Suscripcion.objects.get(correo="ana@example.test").activa)
+        self.client.post(reverse("catalogo:cambiar_suscripcion"), {"activa": "0"})
+        self.assertFalse(Suscripcion.objects.get(correo="ana@example.test").activa)
+        self.assertFalse(self.client.get(reverse("catalogo:cuenta")).context["suscrito"])
+
+    def test_suscriptores_solo_para_admin_y_con_excel(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        Suscripcion.objects.create(correo="a@example.test")
+        Suscripcion.objects.create(correo="b@example.test", activa=False)
+        self.client.force_login(self.cliente)
+        self.assertEqual(self.client.get(reverse("catalogo:suscriptores_gestion")).status_code, 403)
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:suscriptores_gestion"))
+        self.assertEqual((response.context["activas"], response.context["inactivas"]), (1, 1))
+        hoja = load_workbook(BytesIO(self.client.get(reverse("catalogo:exportar_suscriptores")).content)).active
+        self.assertEqual(hoja.max_row, 3)
+
+    # --- Reporte de ventas ---
+
+    def test_reporte_de_ventas_no_cuenta_pedidos_cancelados(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        self.client.force_login(self.cliente)
+        self.comprar(producto_id=1, cantidad=2)  # 2 × $12.990
+        self.comprar(producto_id=2, cantidad=1)  # 1 × $8.990
+        cancelado = self.comprar(producto_id=3, cantidad=4)
+        self.client.post(reverse("catalogo:cancelar_pedido", args=[cancelado.codigo]))
+        self.client.force_login(self.administrador)
+        datos = self.client.get(reverse("catalogo:reporte_ventas")).context
+        self.assertEqual(datos["resumen"]["pedidos"], 2)
+        self.assertEqual(datos["resumen"]["ingresos"], 2 * 12990 + 8990)
+        self.assertEqual(datos["resumen"]["unidades"], 3)
+        self.assertEqual(datos["mas_vendidos"][0]["nombre"], Producto.objects.get(pk=1).nombre)
+        self.assertEqual(datos["mas_vendidos"][0]["unidades"], 2)
+        self.assertEqual({e["clave"]: e["cantidad"] for e in datos["por_estado"]}["cancelado"], 1)
+        libro = load_workbook(BytesIO(self.client.get(reverse("catalogo:exportar_ventas")).content))
+        self.assertEqual(libro.sheetnames, ["Más vendidos", "Ingresos por categoría", "Pedidos por estado"])
+
+    def test_modelos_nuevos_registrados_en_admin(self):
+        from django.contrib import admin
+
+        for modelo in (Pedido, ConsultaCliente, PerfilCliente, Suscripcion):
+            self.assertIn(modelo, admin.site._registry)

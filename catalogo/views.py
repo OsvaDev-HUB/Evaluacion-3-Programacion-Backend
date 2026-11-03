@@ -17,9 +17,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .excel import agregar_hoja, nuevo_libro, respuesta_excel
-from .forms import PedidoForm, ProductoForm, RegistroForm
-from .models import Producto
-from .storage import editar_tienda, leer_tienda
+from .forms import (ConsultaForm, EstadoPedidoForm, PedidoForm, PerfilForm, ProductoForm, RegistroForm,
+                    RespuestaConsultaForm, SuscripcionForm)
+from .models import ConsultaCliente, DetallePedido, Pedido, PerfilCliente, Producto, Suscripcion
 from .templatetags.tienda import ilustracion
 
 
@@ -108,6 +108,24 @@ def lista_productos(request):
     return render(request, "catalogo/lista.html", {"productos": filtrados, **resumen(productos), **filtros})
 
 
+VISTOS_MAXIMO = 3
+
+
+def productos_vistos(request, excluir=None):
+    """Productos de la lista "vistos" de la sesión, en el mismo orden (el más reciente primero)."""
+    ids = [i for i in request.session.get("vistos", []) if i != excluir]
+    encontrados = Producto.objects.in_bulk(ids)
+    # in_bulk no respeta el orden, por eso se recorre la lista de ids
+    return [encontrados[i] for i in ids if i in encontrados]
+
+
+def guardar_visto(request, producto_id):
+    """Pone el producto al inicio de la lista de la sesión y deja solo los últimos 3."""
+    vistos = [i for i in request.session.get("vistos", []) if i != producto_id]
+    vistos.insert(0, producto_id)
+    request.session["vistos"] = vistos[:VISTOS_MAXIMO]
+
+
 def detalle_producto(request, producto_id):
     productos = cargar_productos()
     try:
@@ -115,7 +133,10 @@ def detalle_producto(request, producto_id):
     except Http404:
         return render(request, "catalogo/no_encontrado.html", {"producto_id": producto_id}, status=404)
     relacionados = [p for p in productos if p["categoria"] == producto["categoria"] and p["id"] != producto_id][:4]
-    return render(request, "catalogo/detalle.html", {"producto": producto, "relacionados": relacionados})
+    # Primero se leen los vistos anteriores (sin el actual) y después se guarda este
+    vistos = productos_vistos(request, excluir=producto_id)
+    guardar_visto(request, producto_id)
+    return render(request, "catalogo/detalle.html", {"producto": producto, "relacionados": relacionados, "vistos": vistos})
 
 
 def destino_seguro(request, defecto="catalogo:lista"):
@@ -219,6 +240,10 @@ def modificar_carrito(request, producto_id):
     return redirect(destino_seguro(request, "catalogo:carrito"))
 
 
+class StockInsuficiente(Exception):
+    """Se lanza si otro cliente compró las últimas unidades mientras se confirmaba."""
+
+
 @login_required
 def checkout(request):
     contexto = detalle_carrito(request)
@@ -232,48 +257,175 @@ def checkout(request):
     if not token:
         token = secrets.token_hex(24)
         request.session["pedido_token"] = token
-    form = PedidoForm(request.POST or None, initial={"nombre": request.user.first_name or request.user.username, "email": request.user.email})
+    # El teléfono guardado en "Mis datos" se usa para llenar el formulario
+    perfil = PerfilCliente.objects.filter(usuario=request.user).first()
+    inicial = {"nombre": request.user.get_full_name() or request.user.username, "email": request.user.email,
+               "telefono": perfil.telefono if perfil else ""}
+    form = PedidoForm(request.POST or None, initial=inicial)
     if request.method == "POST" and form.is_valid():
         if request.POST.get("token") != token:
             form.add_error(None, "Esta confirmación expiró. Revisa los datos e inténtalo nuevamente.")
         else:
-            with transaction.atomic(), editar_tienda() as datos:
-                existente = next((p for p in datos["pedidos"] if p["token"] == token and p["usuario_id"] == request.user.pk), None)
-                if existente:
-                    pedido = existente
-                else:
-                    actual = detalle_carrito(request)
-                    if actual["ajustado"] or not actual["items"]:
-                        messages.warning(request, "El stock cambió durante la confirmación. Revisa tu carrito.")
-                        return redirect("catalogo:carrito")
-                    pedido = {"id": secrets.token_hex(6).upper(), "token": token, "usuario_id": request.user.pk,
-                              "fecha": timezone.localtime().isoformat(), "contacto": form.cleaned_data,
-                              "items": [{"nombre": i["producto"]["nombre"], "precio": i["producto"]["precio"],
-                                         "cantidad": i["cantidad"], "subtotal": i["subtotal"]} for i in actual["items"]],
-                              "total": actual["total"]}
-                    # Se descuenta el stock de cada producto en la base de datos
-                    for item in actual["items"]:
-                        Producto.objects.filter(pk=item["producto"]["id"]).update(stock=F("stock") - item["cantidad"])
-                    datos["pedidos"].append(pedido)
+            try:
+                with transaction.atomic():
+                    # Si el mismo envío llega dos veces, se usa el pedido ya creado
+                    pedido = Pedido.objects.filter(token=token, usuario=request.user).first()
+                    if pedido is None:
+                        actual = detalle_carrito(request)
+                        if actual["ajustado"] or not actual["items"]:
+                            raise StockInsuficiente
+                        pedido = Pedido.objects.create(
+                            codigo=secrets.token_hex(6).upper(), token=token, usuario=request.user,
+                            total=actual["total"], **form.cleaned_data,
+                        )
+                        for item in actual["items"]:
+                            producto = item["producto"]
+                            DetallePedido.objects.create(
+                                pedido=pedido, producto_id=producto["id"], nombre=producto["nombre"],
+                                precio=producto["precio"], cantidad=item["cantidad"],
+                            )
+                            # Se descuenta el stock solo si todavía alcanza (si no, se deshace todo)
+                            descontados = Producto.objects.filter(pk=producto["id"], stock__gte=item["cantidad"]).update(
+                                stock=F("stock") - item["cantidad"])
+                            if not descontados:
+                                raise StockInsuficiente
+            except StockInsuficiente:
+                messages.warning(request, "El stock cambió durante la confirmación. Revisa tu carrito.")
+                return redirect("catalogo:carrito")
             request.session["carrito"] = {}
             request.session.pop("pedido_token", None)
-            return redirect("catalogo:pedido", pedido_id=pedido["id"])
+            return redirect("catalogo:pedido", codigo=pedido.codigo)
     return render(request, "catalogo/checkout.html", {**contexto, "form": form, "token": token})
 
 
 @login_required
-def pedido(request, pedido_id):
-    encontrado = next((p for p in leer_tienda()["pedidos"] if p["id"] == pedido_id and
-                       (p["usuario_id"] == request.user.pk or request.user.is_staff)), None)
-    if not encontrado:
+def pedido(request, codigo):
+    pedido = get_object_or_404(Pedido.objects.prefetch_related("detalles"), codigo=codigo)
+    # Cada cliente ve solo sus pedidos; el administrador ve todos
+    if pedido.usuario_id != request.user.pk and not request.user.is_staff:
         raise Http404("Pedido no encontrado")
-    return render(request, "catalogo/pedido.html", {"pedido": encontrado})
+    contexto = {"pedido": pedido}
+    if request.user.is_staff:
+        contexto["form_estado"] = EstadoPedidoForm(instance=pedido)
+    return render(request, "catalogo/pedido.html", contexto)
+
+
+@login_required
+@require_POST
+def cancelar_pedido(request, codigo):
+    pedido = get_object_or_404(Pedido, codigo=codigo, usuario=request.user)
+    if not pedido.puede_cancelarse:
+        messages.error(request, "Este pedido ya se está preparando y no se puede cancelar desde la web. Escríbenos una consulta.")
+    else:
+        with transaction.atomic():
+            pedido.devolver_stock()
+            pedido.estado = Pedido.CANCELADO
+            pedido.save(update_fields=["estado", "actualizado"])
+        messages.success(request, f"Cancelaste el pedido #{pedido.codigo}. Los productos volvieron a la tienda.")
+    return redirect("catalogo:pedido", codigo=pedido.codigo)
 
 
 @login_required
 def cuenta(request):
-    pedidos = [p for p in reversed(leer_tienda()["pedidos"]) if p["usuario_id"] == request.user.pk]
-    return render(request, "catalogo/cuenta.html", {"pedidos": pedidos})
+    correo = request.user.email.lower()
+    suscripcion = Suscripcion.objects.filter(correo=correo).first() if correo else None
+    return render(request, "catalogo/cuenta.html", {
+        "pedidos": request.user.pedidos.prefetch_related("detalles"),
+        "consultas": request.user.consultas.select_related("producto"),
+        "perfil": PerfilCliente.objects.filter(usuario=request.user).first(),
+        "suscrito": bool(suscripcion and suscripcion.activa),
+        "vistos": productos_vistos(request),
+    })
+
+
+@login_required
+def editar_perfil(request):
+    perfil, _ = PerfilCliente.objects.get_or_create(usuario=request.user)
+    # Los datos se ven bloqueados; se desbloquean con ?editar=1 o al enviar el formulario
+    editando = request.method == "POST" or request.GET.get("editar") == "1"
+    form = PerfilForm(request.POST or None, instance=perfil, usuario=request.user)
+    if not editando:
+        form.bloquear()
+    elif request.method == "GET":
+        form.fields["nombre"].widget.attrs["autofocus"] = True
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Guardamos tus datos.")
+        return redirect("catalogo:editar_perfil")
+    correo = request.user.email.lower()
+    return render(request, "catalogo/perfil.html", {
+        "form": form,
+        "editando": editando,
+        "pedidos_realizados": request.user.pedidos.exclude(estado=Pedido.CANCELADO).count(),
+        "suscrito": bool(correo) and Suscripcion.objects.filter(correo=correo, activa=True).exists(),
+    })
+
+
+@login_required
+@require_POST
+def cambiar_suscripcion(request):
+    """Activa o desactiva las ofertas desde "Mi cuenta"."""
+    correo = request.user.email.lower()
+    if not correo:
+        messages.error(request, "Agrega un correo en Mis datos para recibir ofertas.")
+        return redirect("catalogo:cuenta")
+    suscripcion, _ = Suscripcion.objects.get_or_create(correo=correo)
+    suscripcion.activa = request.POST.get("activa") == "1"
+    suscripcion.save(update_fields=["activa"])
+    if suscripcion.activa:
+        messages.success(request, f"Te enviaremos las ofertas a {correo}.")
+    else:
+        messages.success(request, "Ya no recibirás ofertas por correo.")
+    return redirect("catalogo:cuenta")
+
+
+@require_POST
+def suscribirse(request):
+    """Formulario de ofertas del pie de página (abierto para cualquier visitante)."""
+    form = SuscripcionForm(request.POST)
+    # El mensaje se muestra junto al formulario del pie, no arriba de la página
+    etiqueta = "suscripcion"
+    if form.is_valid():
+        correo = form.cleaned_data["correo"].lower()
+        suscripcion, creada = Suscripcion.objects.get_or_create(correo=correo)
+        if creada:
+            messages.success(request, f"Listo: te avisaremos de las ofertas en {correo}.", extra_tags=etiqueta)
+        elif not suscripcion.activa:
+            suscripcion.activa = True
+            suscripcion.save(update_fields=["activa"])
+            messages.success(request, f"Volviste a activar las ofertas para {correo}.", extra_tags=etiqueta)
+        else:
+            messages.info(request, "Ese correo ya recibe nuestras ofertas.", extra_tags=etiqueta)
+    else:
+        messages.error(request, form.errors["correo"][0], extra_tags=etiqueta)
+    return redirect(destino_seguro(request, "catalogo:inicio") + "#ofertas")
+
+
+def nueva_consulta(request):
+    inicial = {}
+    if request.user.is_authenticated:
+        inicial = {"nombre": request.user.first_name, "correo": request.user.email}
+    # Desde la ficha de un producto llega ?producto=<id> para dejarlo elegido
+    producto_id = request.GET.get("producto", "")
+    if producto_id.isdigit() and Producto.objects.filter(pk=producto_id).exists():
+        inicial["producto"] = int(producto_id)
+    form = ConsultaForm(request.POST or None, initial=inicial)
+    if request.method == "POST" and form.is_valid():
+        consulta = form.save(commit=False)
+        if request.user.is_authenticated:
+            consulta.usuario = request.user
+        consulta.save()
+        # La sesión recuerda qué consulta se envió para mostrar su confirmación
+        request.session["consulta_enviada"] = consulta.pk
+        return redirect("catalogo:consulta_enviada")
+    return render(request, "catalogo/consulta.html", {"form": form})
+
+
+def consulta_enviada(request):
+    consulta = ConsultaCliente.objects.select_related("producto").filter(pk=request.session.get("consulta_enviada")).first()
+    if consulta is None:
+        return redirect("catalogo:consulta")
+    return render(request, "catalogo/consulta_enviada.html", {"consulta": consulta})
 
 
 def administrador_requerido(vista):
@@ -517,4 +669,156 @@ def exportar_stock_critico(request):
 
 @administrador_requerido
 def pedidos_gestion(request):
-    return render(request, "catalogo/pedidos_gestion.html", {"pedidos": list(reversed(leer_tienda()["pedidos"]))})
+    estados = dict(Pedido.ESTADOS)
+    estado_elegido = request.GET.get("estado", "")
+    pedidos = Pedido.objects.select_related("usuario")
+    if estado_elegido in estados:
+        pedidos = pedidos.filter(estado=estado_elegido)
+    else:
+        estado_elegido = ""
+    # Cuántos pedidos hay en cada estado, para las pestañas del filtro
+    conteo = dict(Pedido.objects.values_list("estado").annotate(cantidad=Count("id")))
+    filtros = [{"clave": clave, "nombre": nombre, "cantidad": conteo.get(clave, 0)} for clave, nombre in Pedido.ESTADOS]
+    return render(request, "catalogo/pedidos_gestion.html", {
+        "pedidos": pedidos,
+        "filtros": filtros,
+        "estado_elegido": estado_elegido,
+        "total_pedidos": sum(conteo.values()),
+        "estados": Pedido.ESTADOS,
+    })
+
+
+@administrador_requerido
+@require_POST
+def cambiar_estado_pedido(request, codigo):
+    pedido = get_object_or_404(Pedido, codigo=codigo)
+    estado_anterior = pedido.estado
+    form = EstadoPedidoForm(request.POST, instance=pedido)
+    if form.is_valid():
+        with transaction.atomic():
+            # Al cancelar, las unidades vuelven al inventario
+            if form.cleaned_data["estado"] == Pedido.CANCELADO and estado_anterior != Pedido.CANCELADO:
+                pedido.devolver_stock()
+            form.save()
+        messages.success(request, f"El pedido #{pedido.codigo} quedó en «{pedido.get_estado_display()}».")
+    else:
+        messages.error(request, form.errors["estado"][0])
+    return redirect(destino_seguro(request, "catalogo:pedidos_gestion"))
+
+
+@administrador_requerido
+def consultas_gestion(request):
+    filtro = request.GET.get("estado", "pendientes")
+    consultas = ConsultaCliente.objects.select_related("producto")
+    if filtro == "pendientes":
+        consultas = consultas.filter(respuesta="")
+    elif filtro == "respondidas":
+        consultas = consultas.exclude(respuesta="")
+    else:
+        filtro = "todas"
+    conteo = ConsultaCliente.objects.aggregate(
+        pendientes=Count("id", filter=Q(respuesta="")),
+        respondidas=Count("id", filter=~Q(respuesta="")),
+        todas=Count("id"),
+    )
+    return render(request, "catalogo/consultas_gestion.html", {"consultas": consultas, "filtro": filtro, "conteo": conteo})
+
+
+@administrador_requerido
+def responder_consulta(request, consulta_id):
+    consulta = get_object_or_404(ConsultaCliente.objects.select_related("producto"), pk=consulta_id)
+    form = RespuestaConsultaForm(request.POST or None, instance=consulta)
+    if request.method == "POST" and form.is_valid():
+        respondida = form.save(commit=False)
+        respondida.fecha_respuesta = timezone.now()
+        respondida.save()
+        messages.success(request, f"Respondiste la consulta de {consulta.nombre}.")
+        return redirect("catalogo:consultas_gestion")
+    return render(request, "catalogo/consulta_gestion.html", {"consulta": consulta, "form": form})
+
+
+@administrador_requerido
+def suscriptores_gestion(request):
+    conteo = Suscripcion.objects.aggregate(
+        activas=Count("id", filter=Q(activa=True)),
+        inactivas=Count("id", filter=Q(activa=False)),
+    )
+    return render(request, "catalogo/suscriptores_gestion.html", {"suscripciones": Suscripcion.objects.all(), **conteo})
+
+
+@administrador_requerido
+def exportar_suscriptores(request):
+    libro = nuevo_libro()
+    agregar_hoja(
+        libro, "Suscriptores",
+        ["Correo", "Estado", "Fecha de inscripción"],
+        [[s.correo, "Activa" if s.activa else "Dada de baja", f"{timezone.localtime(s.fecha):%d-%m-%Y %H:%M}"]
+         for s in Suscripcion.objects.all()],
+    )
+    return respuesta_excel(libro, "suscriptores-ofertas")
+
+
+def calcular_reporte_ventas():
+    """Reporte de ventas: los pedidos cancelados no cuentan como venta."""
+    vendidos = DetallePedido.objects.exclude(pedido__estado=Pedido.CANCELADO)
+    validos = Pedido.objects.exclude(estado=Pedido.CANCELADO)
+
+    resumen = validos.aggregate(pedidos=Count("id"), ingresos=Sum("total"), ticket_promedio=Avg("total"))
+    resumen["ingresos"] = resumen["ingresos"] or 0
+    resumen["ticket_promedio"] = round(resumen["ticket_promedio"] or 0)
+    resumen["unidades"] = vendidos.aggregate(unidades=Sum("cantidad"))["unidades"] or 0
+
+    # Los 10 productos con más unidades vendidas (values + annotate + order_by)
+    mas_vendidos = list(
+        vendidos.values("nombre")
+        .annotate(unidades=Sum("cantidad"), ingresos=Sum(F("precio") * F("cantidad")), pedidos=Count("pedido", distinct=True))
+        .order_by("-unidades", "nombre")[:10]
+    )
+
+    # Ingresos de cada categoría (el producto puede haberse borrado: queda "Sin categoría")
+    por_categoria = list(
+        vendidos.values("producto__categoria")
+        .annotate(ingresos=Sum(F("precio") * F("cantidad")), unidades=Sum("cantidad"))
+        .order_by("-ingresos")
+    )
+    for fila in por_categoria:
+        fila["categoria"] = fila["producto__categoria"] or "Sin categoría"
+        fila["porcentaje"] = round(fila["ingresos"] * 100 / resumen["ingresos"]) if resumen["ingresos"] else 0
+
+    # Cuántos pedidos hay en cada estado (incluye los cancelados)
+    conteo = dict(Pedido.objects.values_list("estado").annotate(cantidad=Count("id")))
+    por_estado = [{"clave": clave, "nombre": nombre, "cantidad": conteo.get(clave, 0)} for clave, nombre in Pedido.ESTADOS]
+
+    return {"resumen": resumen, "mas_vendidos": mas_vendidos, "por_categoria": por_categoria,
+            "por_estado": por_estado, "total_pedidos": sum(conteo.values())}
+
+
+@administrador_requerido
+def reporte_ventas(request):
+    return render(request, "catalogo/reporte_ventas.html", calcular_reporte_ventas())
+
+
+@administrador_requerido
+def exportar_reporte_ventas(request):
+    datos = calcular_reporte_ventas()
+    libro = nuevo_libro()
+    agregar_hoja(
+        libro, "Más vendidos",
+        ["Posición", "Producto", "Unidades vendidas", "Pedidos", "Ingresos"],
+        [[indice, f["nombre"], f["unidades"], f["pedidos"], f["ingresos"]] for indice, f in enumerate(datos["mas_vendidos"], start=1)],
+        columnas_pesos=[5],
+    )
+    agregar_hoja(
+        libro, "Ingresos por categoría",
+        ["Categoría", "Unidades vendidas", "Ingresos", "Parte de los ingresos"],
+        [[f["categoria"], f["unidades"], f["ingresos"], f["porcentaje"] / 100] for f in datos["por_categoria"]],
+        columnas_pesos=[3], columnas_porcentaje=[4],
+        fila_total=["Total", datos["resumen"]["unidades"], datos["resumen"]["ingresos"], 1 if datos["resumen"]["ingresos"] else 0],
+    )
+    agregar_hoja(
+        libro, "Pedidos por estado",
+        ["Estado", "Pedidos"],
+        [[e["nombre"], e["cantidad"]] for e in datos["por_estado"]],
+        fila_total=["Total", datos["total_pedidos"]],
+    )
+    return respuesta_excel(libro, "reporte-ventas")

@@ -1,0 +1,88 @@
+{% extends 'catalogo/base.html' %}{% load tienda %}
+{% block title %}Reporte de ventas | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Reporte de ventas</h1>
+            <p>Lo que se ha vendido según los pedidos guardados. Los pedidos cancelados no cuentan como venta.</p>
+        </div>
+        <a class="boton boton-secundario" href="{% url 'catalogo:exportar_ventas' %}" download><svg class="icono" aria-hidden="true"><use href="#i-descargar"/></svg>Descargar Excel</a>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <!-- Totales de los pedidos válidos (aggregate) -->
+    <dl class="resumen-inventario">
+        <div><dt>Pedidos vendidos</dt><dd>{{ resumen.pedidos }}</dd></div>
+        <div><dt>Ingresos</dt><dd>{{ resumen.ingresos|pesos }}</dd></div>
+        <div><dt>Ticket promedio</dt><dd>{{ resumen.ticket_promedio|pesos }}</dd></div>
+        <div><dt>Unidades vendidas</dt><dd>{{ resumen.unidades }}</dd></div>
+    </dl>
+
+    {% if mas_vendidos %}
+    <!-- Productos más vendidos (values + annotate con Sum, ordenados por unidades) -->
+    <div class="tabla-contenedor" role="region" aria-label="Productos más vendidos" tabindex="0">
+        <table class="tabla-productos tabla-reporte">
+            <thead>
+                <tr>
+                    <th scope="col" class="numero">#</th>
+                    <th scope="col">Producto</th>
+                    <th scope="col" class="numero">Unidades vendidas</th>
+                    <th scope="col" class="numero">Pedidos</th>
+                    <th scope="col" class="numero">Ingresos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in mas_vendidos %}
+                <tr>
+                    <td class="numero"><span class="ranking-posicion">{{ forloop.counter }}</span></td>
+                    <th scope="row">{{ fila.nombre }}</th>
+                    <td class="numero">{{ fila.unidades }}</td>
+                    <td class="numero">{{ fila.pedidos }}</td>
+                    <td class="numero precio-tabla">{{ fila.ingresos|pesos }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="reporte-secciones">
+        <section class="reporte-seccion" aria-labelledby="titulo-ventas-categoria">
+            <header class="reporte-seccion-cabecera">
+                <h2 id="titulo-ventas-categoria">Ingresos por categoría</h2>
+                <p>Parte de los ingresos que aporta cada categoría.</p>
+            </header>
+            <ul class="leyenda-stock">
+                {% for fila in por_categoria %}
+                <li class="fila-ingresos">
+                    <span class="leyenda-texto"><strong>{{ fila.categoria }}</strong><small>{{ fila.unidades }} unidad{{ fila.unidades|pluralize:"es" }} · {{ fila.ingresos|pesos }}</small></span>
+                    <span class="barra-reporte"><span class="barra-pista" aria-hidden="true"><span class="barra-relleno" style="width: {{ fila.porcentaje }}%"></span></span><span class="barra-valor">{{ fila.porcentaje }}%</span></span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        <section class="reporte-seccion" aria-labelledby="titulo-por-estado">
+            <header class="reporte-seccion-cabecera">
+                <h2 id="titulo-por-estado">Pedidos por estado</h2>
+                <p>Los {{ total_pedidos }} pedidos de la tienda, incluidos los cancelados.</p>
+            </header>
+            <ul class="leyenda-stock">
+                {% for estado in por_estado %}
+                <li class="fila-estado">
+                    <span class="leyenda-texto"><a class="enlace-tabla" href="{% url 'catalogo:pedidos_gestion' %}?estado={{ estado.clave }}">{{ estado.nombre }}</a></span>
+                    <span class="leyenda-cifra">{{ estado.cantidad }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+    {% else %}
+    <div class="estado-vacio">
+        <svg class="icono" aria-hidden="true"><use href="#i-cart"/></svg>
+        <h3>Aún no hay ventas</h3>
+        <p>Cuando los clientes confirmen pedidos, aquí verás los productos más vendidos y los ingresos de cada categoría.</p>
+        <a class="boton boton-secundario" href="{% url 'catalogo:pedidos_gestion' %}">Ver pedidos</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

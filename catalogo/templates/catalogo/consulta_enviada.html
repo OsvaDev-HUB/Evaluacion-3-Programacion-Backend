@@ -1,0 +1,20 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Consulta enviada | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <div class="formulario-panel confirmacion">
+        <span class="icono-exito"><svg class="icono" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <h1>Recibimos tu consulta</h1>
+        <p>Gracias, {{ consulta.nombre }}. Te responderemos a <strong>{{ consulta.correo }}</strong> el mismo día hábil.</p>
+        <dl class="datos-cliente-pedido">
+            <div><dt>Producto</dt><dd>{{ consulta.producto.nombre|default:'Consulta general' }}</dd></div>
+            <div><dt>Enviada</dt><dd>{{ consulta.fecha|date:'d-m-Y' }} a las {{ consulta.fecha|date:'H:i' }}</dd></div>
+        </dl>
+        <blockquote class="consulta-mensaje">{{ consulta.mensaje|linebreaksbr }}</blockquote>
+        <div class="acciones-formulario">
+            <a class="boton boton-primario" href="{% url 'catalogo:lista' %}">Volver a la tienda</a>
+            {% if user.is_authenticated %}<a class="boton boton-secundario" href="{% url 'catalogo:cuenta' %}#consultas">Ver mis consultas</a>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

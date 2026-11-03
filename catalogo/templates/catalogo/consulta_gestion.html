@@ -1,0 +1,49 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Consulta de {{ consulta.nombre }} | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    {% include 'catalogo/componentes/nav_gestion.html' with detalle_consulta=True %}
+    <!-- Mismo diseño que el detalle del pedido: un panel en el celular y dos columnas en el computador -->
+    <div class="detalle-admin consulta-admin">
+        <header class="detalle-admin-cabecera">
+            <div>
+                <a class="volver" href="{% url 'catalogo:consultas_gestion' %}">Volver a las consultas</a>
+                <h1>Consulta de {{ consulta.nombre }}</h1>
+                <p class="cabecera-pedido">
+                    <span class="texto-secundario">{% if consulta.producto %}Sobre {{ consulta.producto.nombre }}{% else %}Consulta general{% endif %}</span>
+                    {% if consulta.respondida %}<span class="estado estado-disponible">Respondida</span>{% else %}<span class="estado estado-pedido-recibido">Pendiente</span>{% endif %}
+                </p>
+            </div>
+            <p class="texto-secundario">Enviada el {{ consulta.fecha|date:'d-m-Y' }} a las {{ consulta.fecha|date:'H:i' }}</p>
+        </header>
+
+        <section class="detalle-admin-bloque consulta-admin-cliente" aria-labelledby="titulo-cliente-consulta">
+            <h2 class="titulo-escritorio" id="titulo-cliente-consulta">Datos del cliente</h2>
+            <dl class="datos-cliente-pedido">
+                <div><dt>Correo</dt><dd>{{ consulta.correo }}</dd></div>
+                <div><dt>Producto</dt><dd>{% if consulta.producto %}<a class="enlace-tabla" href="{% url 'catalogo:detalle' consulta.producto.id %}">{{ consulta.producto.nombre }}</a>{% else %}Consulta general{% endif %}</dd></div>
+                <div><dt>Cuenta</dt><dd>{% if consulta.usuario %}{{ consulta.usuario.username }}{% else %}Sin cuenta (solo correo){% endif %}</dd></div>
+            </dl>
+        </section>
+
+        <section class="detalle-admin-bloque consulta-admin-mensaje" aria-labelledby="titulo-mensaje">
+            <h2 class="titulo-escritorio" id="titulo-mensaje">Mensaje del cliente</h2>
+            <blockquote class="consulta-mensaje">{{ consulta.mensaje|linebreaksbr }}</blockquote>
+        </section>
+
+        <section class="detalle-admin-bloque consulta-admin-respuesta" aria-labelledby="titulo-respuesta">
+            <h2 class="titulo-escritorio" id="titulo-respuesta">{% if consulta.respondida %}Tu respuesta{% else %}Responder{% endif %}</h2>
+            {% if consulta.respondida %}<p class="texto-secundario consulta-admin-fecha">Respondida el {{ consulta.fecha_respuesta|date:'d-m-Y' }} a las {{ consulta.fecha_respuesta|date:'H:i' }}. Puedes corregir la respuesta.</p>{% endif %}
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {% include 'catalogo/componentes/campos.html' %}
+                <p class="nota-demo">Demostración: la respuesta se guarda y el cliente la ve en Mi cuenta. No se envía un correo real.</p>
+                <div class="acciones-formulario">
+                    <button class="boton boton-primario" type="submit">{% if consulta.respondida %}Actualizar respuesta{% else %}Enviar respuesta{% endif %}</button>
+                    <a class="boton boton-secundario" href="{% url 'catalogo:consultas_gestion' %}">Cancelar</a>
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+{% endblock %}

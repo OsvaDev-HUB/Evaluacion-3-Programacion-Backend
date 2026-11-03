@@ -1,3 +1,98 @@
 {% extends 'catalogo/base.html' %}{% load tienda %}
 {% block title %}Mi cuenta | El Tornillo{% endblock %}
-{% block content %}<div class="contenedor pagina-interior"><header class="cabecera-seccion"><div><h1>Hola, {{ user.first_name|default:user.username }}</h1><p>Este es el lugar para consultar tus pedidos.</p></div><div class="acciones-formulario">{% if user.is_staff %}<a class="boton boton-primario" href="{% url 'catalogo:gestion' %}">Administrar tienda</a>{% endif %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="boton boton-secundario" type="submit">Cerrar sesión</button></form></div></header><section class="formulario-panel"><h2>Mis pedidos</h2>{% include 'catalogo/componentes/pedidos.html' %}</section></div>{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Hola, {{ user.first_name|default:user.username }}</h1>
+            <p>Sigue tus pedidos, revisa las respuestas a tus consultas y mantén tus datos al día.</p>
+        </div>
+        <div class="acciones-formulario">
+            {% if user.is_staff %}<a class="boton boton-primario" href="{% url 'catalogo:gestion' %}">Administrar tienda</a>{% endif %}
+            <a class="boton boton-secundario" href="{% url 'catalogo:consulta' %}"><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>Hacer una consulta</a>
+        </div>
+    </header>
+
+    <div class="cuenta-layout">
+        <div class="cuenta-principal">
+            <!-- Pedidos del cliente con su rastreo (vienen de la BD) -->
+            <section class="panel-cuenta" id="pedidos" aria-labelledby="titulo-pedidos" tabindex="-1">
+                <h2 id="titulo-pedidos">Mis pedidos</h2>
+                {% for pedido in pedidos %}
+                <article class="pedido-cuenta">
+                    <header class="pedido-cuenta-cabecera">
+                        <div>
+                            <h3><a class="enlace-tabla" href="{% url 'catalogo:pedido' pedido.codigo %}">Pedido #{{ pedido.codigo }}</a></h3>
+                            <p>{{ pedido.fecha|date:'d-m-Y' }} · {{ pedido.detalles.all|length }} producto{{ pedido.detalles.all|length|pluralize }}</p>
+                        </div>
+                        {% include 'catalogo/componentes/estado_pedido.html' %}
+                        <strong class="pedido-cuenta-total">{{ pedido.total|pesos }}</strong>
+                    </header>
+                    {% include 'catalogo/componentes/rastreo.html' %}
+                </article>
+                {% empty %}
+                <div class="estado-vacio">
+                    <svg class="icono" aria-hidden="true"><use href="#i-box"/></svg>
+                    <h3>Aún no hay pedidos</h3>
+                    <p>Cuando confirmes un pedido, aquí podrás ver en qué paso va.</p>
+                    <a class="boton boton-primario" href="{% url 'catalogo:lista' %}">Ir a la tienda</a>
+                </div>
+                {% endfor %}
+            </section>
+
+            <!-- Consultas enviadas con la sesión iniciada -->
+            <section class="panel-cuenta" id="consultas" aria-labelledby="titulo-consultas" tabindex="-1">
+                <h2 id="titulo-consultas">Mis consultas</h2>
+                {% for consulta in consultas %}
+                <article class="consulta-cuenta">
+                    <header>
+                        <h3>{% if consulta.producto %}Sobre {{ consulta.producto.nombre }}{% else %}Consulta general{% endif %}</h3>
+                        {% if consulta.respondida %}<span class="estado estado-disponible">Respondida</span>{% else %}<span class="estado estado-pedido-recibido">Pendiente</span>{% endif %}
+                    </header>
+                    <p class="consulta-cuenta-fecha">Enviada el {{ consulta.fecha|date:'d-m-Y' }}</p>
+                    <blockquote class="consulta-mensaje">{{ consulta.mensaje|linebreaksbr }}</blockquote>
+                    {% if consulta.respondida %}
+                    <div class="consulta-respuesta">
+                        <p class="consulta-respuesta-titulo">El Tornillo respondió el {{ consulta.fecha_respuesta|date:'d-m-Y' }}</p>
+                        <p>{{ consulta.respuesta|linebreaksbr }}</p>
+                    </div>
+                    {% endif %}
+                </article>
+                {% empty %}
+                <p class="texto-secundario">No has enviado consultas. <a class="enlace-tabla" href="{% url 'catalogo:consulta' %}">Escríbenos</a> si tienes dudas sobre un producto o un pedido.</p>
+                {% endfor %}
+            </section>
+        </div>
+
+        <aside class="cuenta-lateral">
+            <section class="panel-cuenta" aria-labelledby="titulo-datos">
+                <h2 id="titulo-datos">Mis datos</h2>
+                <dl class="datos-cuenta">
+                    <div><dt>Nombre</dt><dd>{{ user.first_name|default:'Sin nombre' }}</dd></div>
+                    <div><dt>Correo</dt><dd>{{ user.email|default:'Sin correo' }}</dd></div>
+                    <div><dt>Teléfono</dt><dd>{{ perfil.telefono|default:'Sin teléfono' }}</dd></div>
+                    <div><dt>Dirección</dt><dd>{% if perfil.direccion %}{{ perfil.direccion }}{% if perfil.comuna %}, {{ perfil.comuna }}{% endif %}{% else %}Sin dirección{% endif %}</dd></div>
+                </dl>
+                <a class="boton boton-secundario boton-ancho" href="{% url 'catalogo:editar_perfil' %}">Editar mis datos</a>
+            </section>
+
+            <section class="panel-cuenta" aria-labelledby="titulo-ofertas">
+                <h2 id="titulo-ofertas">Ofertas por correo</h2>
+                {% if suscrito %}
+                <p class="texto-secundario">Te avisamos de ofertas en {{ user.email }}.</p>
+                <form method="post" action="{% url 'catalogo:cambiar_suscripcion' %}">{% csrf_token %}<input type="hidden" name="activa" value="0"><button class="boton boton-secundario boton-ancho" type="submit">Dejar de recibir ofertas</button></form>
+                {% else %}
+                <p class="texto-secundario">Recibe en tu correo los descuentos de la semana.</p>
+                <form method="post" action="{% url 'catalogo:cambiar_suscripcion' %}">{% csrf_token %}<input type="hidden" name="activa" value="1"><button class="boton boton-primario boton-ancho" type="submit">Recibir ofertas</button></form>
+                {% endif %}
+            </section>
+
+            <!-- Últimos 3 productos vistos: se guardan en la sesión -->
+            <section class="panel-cuenta" aria-labelledby="titulo-vistos">
+                <h2 id="titulo-vistos">Vistos recientemente</h2>
+                {% include 'catalogo/componentes/vistos.html' %}
+            </section>
+        </aside>
+    </div>
+</div>
+{% endblock %}

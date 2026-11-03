@@ -1,0 +1,35 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Escríbenos una consulta | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Escríbenos una consulta</h1>
+            <p>Te ayudamos a elegir una herramienta, comparar alternativas o revisar un pedido. Respondemos el mismo día hábil.</p>
+        </div>
+    </header>
+    <div class="consulta-layout">
+        <!-- novalidate: las validaciones las hace Django y muestra sus propios mensajes -->
+        <form class="formulario-panel" method="post" novalidate>
+            {% csrf_token %}
+            <h2>Tu consulta</h2>
+            {% if user.is_authenticated %}<p class="texto-secundario">La respuesta también aparecerá en <a class="enlace-tabla" href="{% url 'catalogo:cuenta' %}#consultas">Mi cuenta</a>.</p>{% endif %}
+            <!-- En el computador nombre y correo van lado a lado; producto y consulta usan todo el ancho -->
+            <div class="campos-grilla">{% include 'catalogo/componentes/campos.html' %}</div>
+            <button class="boton boton-primario" type="submit"><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>Enviar consulta</button>
+        </form>
+        <aside class="consulta-lateral">
+        <section class="panel-cuenta consulta-contacto" aria-labelledby="titulo-otros-medios">
+            <h2 id="titulo-otros-medios">Otras formas de contacto</h2>
+            <dl class="datos-cuenta">
+                <div><dt>Teléfono</dt><dd>+56 2 2345 6789</dd></div>
+                <div><dt>Correo</dt><dd>contacto@eltornillo.example</dd></div>
+                <div><dt>Dirección</dt><dd>Av. Los Carpinteros 1240, Santiago</dd></div>
+                <div><dt>Horario</dt><dd>Lunes a viernes, 9:00 a 19:00. Sábado de 10:00 a 14:00.</dd></div>
+            </dl>
+        </section>
+        {% include 'catalogo/componentes/ayuda_maestro.html' with id_titulo='titulo-ayuda-consulta' titulo='Te responde nuestro equipo' texto='Las mismas personas que te atienden en el local revisan cada consulta, sea por una herramienta o por un pedido.' imagen='catalogo/img/landing/maestro-hero.webp' ancho=1000 alto=1240 %}
+        </aside>
+    </div>
+</div>
+{% endblock %}

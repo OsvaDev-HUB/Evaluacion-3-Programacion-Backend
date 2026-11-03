@@ -1,0 +1,14 @@
+{% load tienda %}{# Productos, total y nota del pedido (se usa en la vista del cliente y del admin) #}
+<ul class="lineas-pedido">
+    {% for item in pedido.detalles.all %}
+        <li>
+            <span>
+                {{ item.cantidad }} × {{ item.nombre }}
+                {% if user.is_staff %}<small class="precio-unitario-pedido">{{ item.precio|pesos }} por unidad</small>{% endif %}
+            </span>
+            <strong>{{ item.subtotal|pesos }}</strong>
+        </li>
+    {% endfor %}
+</ul>
+<p class="total-pedido">Total <strong>{{ pedido.total|pesos }}</strong></p>
+<p class="nota-demo">Pedido de demostración para retiro en tienda. No se efectuó ningún cobro ni se envió una confirmación por correo.</p>

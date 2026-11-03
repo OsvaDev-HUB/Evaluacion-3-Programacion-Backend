@@ -112,6 +112,7 @@
         <header class="cabecera-inicio">
             <h2 id="titulo-contacto">¿Tienes una pregunta?</h2>
             <p>Te ayudamos a elegir una herramienta, comparar alternativas o revisar un pedido. Llámanos, escríbenos o visítanos en el local.</p>
+            <a class="boton boton-primario" href="{% url 'catalogo:consulta' %}"><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>Escríbenos una consulta</a>
         </header>
         <div class="contacto-grilla">
             <figure class="contacto-foto">
@@ -148,7 +149,7 @@
     <header class="preguntas-cabecera">
         <h2 id="titulo-preguntas">Preguntas frecuentes.</h2>
         <p>Lo que más nos preguntan antes de armar un pedido.</p>
-        <p class="preguntas-ayuda">¿Tienes otra duda? <a href="#contacto">Revisa nuestros datos de contacto</a>.</p>
+        <p class="preguntas-ayuda">¿Tienes otra duda? <a href="{% url 'catalogo:consulta' %}">Escríbenos una consulta</a>.</p>
     </header>
     <!-- Acordeón nativo: funciona sin JavaScript y abre una pregunta a la vez -->
     <div class="preguntas-lista">

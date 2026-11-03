@@ -1,0 +1,45 @@
+{% extends 'catalogo/base.html' %}
+{% block title %}Consultas de clientes | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Consultas de clientes</h1>
+            <p>Responde las preguntas que llegan desde el formulario de contacto. El cliente ve la respuesta en su cuenta.</p>
+        </div>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <nav class="filtro-estados" aria-label="Filtrar consultas">
+        <a href="?estado=pendientes" {% if filtro == 'pendientes' %}aria-current="page"{% endif %}>Pendientes <span>{{ conteo.pendientes }}</span></a>
+        <a href="?estado=respondidas" {% if filtro == 'respondidas' %}aria-current="page"{% endif %}>Respondidas <span>{{ conteo.respondidas }}</span></a>
+        <a href="?estado=todas" {% if filtro == 'todas' %}aria-current="page"{% endif %}>Todas <span>{{ conteo.todas }}</span></a>
+    </nav>
+
+    <div class="lista-consultas">
+        {% for consulta in consultas %}
+        <article class="consulta-fila">
+            <div class="consulta-fila-datos">
+                <h2>{{ consulta.nombre }}</h2>
+                <p>{{ consulta.correo }}</p>
+                <p>{{ consulta.fecha|date:'d-m-Y H:i' }}</p>
+            </div>
+            <div class="consulta-fila-mensaje">
+                <p class="consulta-fila-producto">{% if consulta.producto %}Sobre {{ consulta.producto.nombre }}{% else %}Consulta general{% endif %}</p>
+                <p>{{ consulta.mensaje|truncatechars:160 }}</p>
+            </div>
+            <div class="consulta-fila-acciones">
+                {% if consulta.respondida %}<span class="estado estado-disponible">Respondida</span>{% else %}<span class="estado estado-pedido-recibido">Pendiente</span>{% endif %}
+                <a class="boton {% if consulta.respondida %}boton-secundario{% else %}boton-primario{% endif %}" href="{% url 'catalogo:responder_consulta' consulta.id %}">{% if consulta.respondida %}Ver respuesta{% else %}Responder{% endif %}</a>
+            </div>
+        </article>
+        {% empty %}
+        <div class="estado-vacio">
+            <svg class="icono" aria-hidden="true"><use href="#i-check"/></svg>
+            <h3>{% if filtro == 'pendientes' %}No hay consultas pendientes{% else %}No hay consultas aquí{% endif %}</h3>
+            <p>Las consultas nuevas llegan desde el formulario de contacto de la tienda.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -41,3 +41,16 @@ def agregar_usuario(datos, usuario, password):
     if any(u["username"].casefold() == usuario.username.casefold() for u in datos["usuarios"]):
         raise ValidationError("Ya existe una cuenta con ese nombre de usuario.")
     datos["usuarios"].append(usuario_a_json(usuario, password))
+
+
+def actualizar_contacto(username, nombre, email):
+    """Cambia el nombre y el correo en usuarios.json.
+
+    El login vuelve a leer estos datos del JSON en cada visita, por eso
+    editar el perfil tiene que cambiarlos aquí y no solo en la BD.
+    """
+    with editar_usuarios() as datos:
+        for registro in datos["usuarios"]:
+            if registro["username"].casefold() == username.casefold():
+                registro["nombre"] = nombre
+                registro["email"] = email

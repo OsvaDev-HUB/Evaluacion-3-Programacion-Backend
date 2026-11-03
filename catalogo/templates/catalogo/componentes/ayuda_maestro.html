@@ -1,0 +1,9 @@
+{% load static %}{# Celda de ayuda con un maestro recortado: el corte de la foto se apoya en el borde inferior #}
+<section class="panel-ayuda" aria-labelledby="{{ id_titulo }}">
+    <div class="panel-ayuda-texto">
+        <h2 id="{{ id_titulo }}">{{ titulo }}</h2>
+        <p>{{ texto }}</p>
+        {% if enlace %}<a class="enlace-tabla" href="{{ enlace }}">{{ texto_enlace }}</a>{% endif %}
+    </div>
+    <img src="{% static imagen %}" alt="" width="{{ ancho }}" height="{{ alto }}" loading="lazy" decoding="async">
+</section>

@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" href="{% static 'catalogo/img/marca/favicon.png' %}">
     <link rel="apple-touch-icon" href="{% static 'catalogo/img/marca/apple-touch-icon.png' %}">
     <link rel="preload" href="{% static 'catalogo/fonts/LeagueGothic.ttf' %}" as="font" type="font/ttf" crossorigin>
-    <link rel="stylesheet" href="{% static 'catalogo/css/estilos.css' %}?v=35-estadisticas">
+    <link rel="stylesheet" href="{% static 'catalogo/css/estilos.css' %}?v=42-maestros">
     <script src="{% static 'catalogo/js/catalogo.js' %}?v=14-menu-cuenta" defer></script>
 </head>
 <body>
@@ -45,12 +45,19 @@
                         <nav class="menu-cuenta-grupo" aria-label="Gestión de la tienda">
                             <a href="{% url 'catalogo:gestion' %}" {% if pagina == 'gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-box"/></svg>Productos y stock</a>
                             <a href="{% url 'catalogo:pedidos_gestion' %}" {% if pagina == 'pedidos_gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-cart"/></svg>Pedidos de la tienda</a>
+                            <a href="{% url 'catalogo:consultas_gestion' %}" {% if pagina == 'consultas_gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>Consultas{% if consultas_pendientes %}<span class="contador-gestion" aria-label="{{ consultas_pendientes }} sin responder">{{ consultas_pendientes }}</span>{% endif %}</a>
+                            <a href="{% url 'catalogo:reporte_ventas' %}" {% if pagina == 'reporte_ventas' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-etiqueta"/></svg>Reporte de ventas</a>
                             <a href="{% url 'catalogo:reporte_categorias' %}" {% if pagina == 'reporte_categorias' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-grid"/></svg>Resumen por categoría</a>
                             <a href="{% url 'catalogo:reporte_stock' %}" {% if pagina == 'reporte_stock' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-capas"/></svg>Stock crítico</a>
+                            <a href="{% url 'catalogo:suscriptores_gestion' %}" {% if pagina == 'suscriptores_gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-tienda"/></svg>Suscriptores</a>
                         </nav>
                         {% endif %}
                         <div class="menu-cuenta-grupo">
                             <a href="{% url 'catalogo:cuenta' %}" {% if pagina == 'cuenta' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-user"/></svg>Mi cuenta</a>
+                            {% if not user.is_staff %}
+                            <a href="{% url 'catalogo:editar_perfil' %}" {% if pagina == 'editar_perfil' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-etiqueta"/></svg>Mis datos</a>
+                            <a href="{% url 'catalogo:consulta' %}" {% if pagina == 'consulta' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-correo"/></svg>Hacer una consulta</a>
+                            {% endif %}
                             <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><svg class="icono" aria-hidden="true"><use href="#i-salir"/></svg>Cerrar sesión</button></form>
                         </div>
                     </div>
@@ -86,7 +93,7 @@
         {% endblock %}
     </header>
     <main id="contenido" tabindex="-1">
-        {% if messages %}<div class="contenedor mensajes" role="status">{% for message in messages %}<p class="mensaje {{ message.tags }}">{{ message }}</p>{% endfor %}</div>{% endif %}
+        {% if messages %}<div class="contenedor mensajes" role="status">{% for message in messages %}{% if 'suscripcion' not in message.tags %}<p class="mensaje {{ message.tags }}">{{ message }}</p>{% endif %}{% endfor %}</div>{% endif %}
         {% block content %}{% endblock %}
     </main>
     <div class="notificacion" id="notificacion" role="status" aria-live="polite" hidden>
@@ -95,9 +102,24 @@
         <button type="button" aria-label="Cerrar notificación">×</button>
     </div>
     <footer class="pie-sitio">
+        <!-- Suscripción a ofertas: abierta para cualquier visitante -->
+        <section class="contenedor pie-ofertas" id="ofertas" aria-labelledby="titulo-ofertas-pie" tabindex="-1">
+            <div>
+                <h2 id="titulo-ofertas-pie">Ofertas de la semana en tu correo</h2>
+                <p>Un correo a la semana con descuentos en herramientas y materiales. Te das de baja cuando quieras.</p>
+            </div>
+            <form class="form-ofertas" method="post" action="{% url 'catalogo:suscribirse' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="solo-lectores" for="correo-ofertas">Tu correo</label>
+                <input id="correo-ofertas" name="correo" type="email" autocomplete="email" placeholder="nombre@correo.cl" required>
+                <button class="boton boton-primario" type="submit">Suscribirme</button>
+                {% for message in messages %}{% if 'suscripcion' in message.tags %}<p class="mensaje-ofertas {{ message.level_tag }}" role="status">{{ message }}</p>{% endif %}{% endfor %}
+            </form>
+        </section>
         <div class="contenedor pie-contenido">
             <div><a class="marca marca-pie" href="{% url 'catalogo:inicio' %}"><img class="marca-logo" src="{% static 'catalogo/img/marca/logo.webp' %}" alt="" width="211" height="240" loading="lazy"><strong>El Tornillo</strong></a><p>Todo empieza con una buena herramienta.</p></div>
-            <nav aria-label="Enlaces del pie"><a href="{% url 'catalogo:inicio' %}">Inicio</a><a href="{% url 'catalogo:inicio' %}#como-comprar">Cómo comprar</a><a href="{% url 'catalogo:inicio' %}#historia">Nuestra historia</a><a href="{% url 'catalogo:inicio' %}#contacto">Contacto</a><a href="{% url 'catalogo:inicio' %}#preguntas">Preguntas frecuentes</a><a href="{% url 'catalogo:lista' %}">Catálogo</a><a href="{% url 'catalogo:carrito' %}">Mi carrito</a><a href="{% url 'login' %}?next={% url 'catalogo:gestion' %}">Acceso de administración</a></nav>
+            <nav aria-label="Enlaces del pie"><a href="{% url 'catalogo:inicio' %}">Inicio</a><a href="{% url 'catalogo:inicio' %}#como-comprar">Cómo comprar</a><a href="{% url 'catalogo:inicio' %}#historia">Nuestra historia</a><a href="{% url 'catalogo:consulta' %}">Escríbenos una consulta</a><a href="{% url 'catalogo:inicio' %}#preguntas">Preguntas frecuentes</a><a href="{% url 'catalogo:lista' %}">Catálogo</a><a href="{% url 'catalogo:carrito' %}">Mi carrito</a><a href="{% url 'login' %}?next={% url 'catalogo:gestion' %}">Acceso de administración</a></nav>
         </div>
         <div class="contenedor pie-legal"><span>Ferretería El Tornillo</span><span>Tienda de demostración · Precios en pesos chilenos</span></div>
     </footer>

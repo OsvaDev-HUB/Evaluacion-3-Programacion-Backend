@@ -1,1 +1,11 @@
-<nav class="tabs-gestion" aria-label="Administración"><a href="{% url 'catalogo:gestion' %}" {% if request.resolver_match.url_name == 'gestion' %}aria-current="page"{% endif %}>Productos y stock</a><a href="{% url 'catalogo:pedidos_gestion' %}" {% if request.resolver_match.url_name == 'pedidos_gestion' or detalle_pedido_gestion %}aria-current="page"{% endif %}>Pedidos</a><a href="{% url 'catalogo:reporte_categorias' %}" {% if request.resolver_match.url_name == 'reporte_categorias' %}aria-current="page"{% endif %}>Resumen por categoría</a><a href="{% url 'catalogo:reporte_stock' %}" {% if request.resolver_match.url_name == 'reporte_stock' %}aria-current="page"{% endif %}>Stock crítico</a>{% if user.is_superuser %}<a href="{% url 'admin:auth_user_changelist' %}">Usuarios</a>{% endif %}<a href="{% url 'catalogo:lista' %}">Ver tienda</a></nav>
+{% with pagina=request.resolver_match.url_name %}<nav class="tabs-gestion" aria-label="Administración">
+    <a href="{% url 'catalogo:gestion' %}" {% if pagina == 'gestion' %}aria-current="page"{% endif %}>Productos y stock</a>
+    <a href="{% url 'catalogo:pedidos_gestion' %}" {% if pagina == 'pedidos_gestion' or detalle_pedido_gestion %}aria-current="page"{% endif %}>Pedidos</a>
+    <a href="{% url 'catalogo:consultas_gestion' %}" {% if pagina == 'consultas_gestion' or detalle_consulta %}aria-current="page"{% endif %}>Consultas{% if consultas_pendientes %} <span class="contador-gestion" aria-label="{{ consultas_pendientes }} sin responder">{{ consultas_pendientes }}</span>{% endif %}</a>
+    <a href="{% url 'catalogo:reporte_ventas' %}" {% if pagina == 'reporte_ventas' %}aria-current="page"{% endif %}>Ventas</a>
+    <a href="{% url 'catalogo:reporte_categorias' %}" {% if pagina == 'reporte_categorias' %}aria-current="page"{% endif %}>Resumen por categoría</a>
+    <a href="{% url 'catalogo:reporte_stock' %}" {% if pagina == 'reporte_stock' %}aria-current="page"{% endif %}>Stock crítico</a>
+    <a href="{% url 'catalogo:suscriptores_gestion' %}" {% if pagina == 'suscriptores_gestion' %}aria-current="page"{% endif %}>Suscriptores</a>
+    {% if user.is_superuser %}<a href="{% url 'admin:auth_user_changelist' %}">Usuarios</a>{% endif %}
+    <a href="{% url 'catalogo:lista' %}">Ver tienda</a>
+</nav>{% endwith %}

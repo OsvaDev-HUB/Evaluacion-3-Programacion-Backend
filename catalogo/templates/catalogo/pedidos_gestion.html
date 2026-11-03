@@ -1,3 +1,72 @@
-{% extends 'catalogo/base.html' %}
+{% extends 'catalogo/base.html' %}{% load tienda %}
 {% block title %}Administrar pedidos | El Tornillo{% endblock %}
-{% block content %}<div class="contenedor pagina-interior"><header class="cabecera-seccion"><div><h1>Pedidos de la tienda</h1><p>Revisa los productos y datos de cada pedido de demostración.</p></div></header>{% include 'catalogo/componentes/nav_gestion.html' %}<div class="formulario-panel">{% include 'catalogo/componentes/pedidos.html' %}</div></div>{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Pedidos de la tienda</h1>
+            <p>Avanza cada pedido hasta la entrega. Al cancelar uno, sus productos vuelven al stock.</p>
+        </div>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <!-- Filtro por estado: cada enlace muestra cuántos pedidos tiene -->
+    <nav class="filtro-estados" aria-label="Filtrar pedidos por estado">
+        <a href="{% url 'catalogo:pedidos_gestion' %}" {% if not estado_elegido %}aria-current="page"{% endif %}>Todos <span>{{ total_pedidos }}</span></a>
+        {% for filtro in filtros %}
+        <a href="?estado={{ filtro.clave }}" {% if estado_elegido == filtro.clave %}aria-current="page"{% endif %}>{{ filtro.nombre }} <span>{{ filtro.cantidad }}</span></a>
+        {% endfor %}
+    </nav>
+
+    <div class="tabla-contenedor" role="region" aria-label="Pedidos" tabindex="0">
+        <table class="tabla-productos">
+            <thead>
+                <tr>
+                    <th scope="col">Pedido</th>
+                    <th scope="col">Cliente</th>
+                    <th scope="col" class="numero">Total</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Cambiar estado</th>
+                    <th scope="col"><span class="solo-lectores">Detalle</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pedido in pedidos %}
+                <tr>
+                    <td><strong>#{{ pedido.codigo }}</strong><small class="dato-tabla">{{ pedido.fecha|date:'d-m-Y H:i' }}</small></td>
+                    <td>{{ pedido.nombre }}<small class="dato-tabla">{{ pedido.email }}</small></td>
+                    <td class="numero precio-tabla">{{ pedido.total|pesos }}</td>
+                    <td>{% include 'catalogo/componentes/estado_pedido.html' %}</td>
+                    <td>
+                        {% if pedido.estado == 'cancelado' %}
+                        <span class="texto-secundario">Sin cambios: ya se canceló</span>
+                        {% else %}
+                        <form class="cambio-estado-fila" method="post" action="{% url 'catalogo:cambiar_estado_pedido' pedido.codigo %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <label class="solo-lectores" for="estado-{{ pedido.codigo }}">Estado del pedido #{{ pedido.codigo }}</label>
+                            <select id="estado-{{ pedido.codigo }}" name="estado">
+                                {% for clave, nombre in estados %}<option value="{{ clave }}" {% if clave == pedido.estado %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+                            </select>
+                            <button class="boton boton-secundario" type="submit">Guardar</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td><a class="enlace-tabla" href="{% url 'catalogo:pedido' pedido.codigo %}">Ver pedido</a></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="estado-vacio">
+                            <svg class="icono" aria-hidden="true"><use href="#i-box"/></svg>
+                            <h3>{% if estado_elegido %}No hay pedidos en este estado{% else %}Aún no hay pedidos{% endif %}</h3>
+                            <p>Los pedidos que confirmen los clientes aparecerán aquí.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

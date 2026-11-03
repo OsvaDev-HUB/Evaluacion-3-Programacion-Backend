@@ -64,6 +64,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'catalogo.context_processors.carrito',
+                'catalogo.context_processors.gestion',
             ],
         },
     },
@@ -131,9 +132,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'catalogo:lista'
 LOGOUT_REDIRECT_URL = 'catalogo:lista'
 LOGIN_URL = 'login'
-
-# Pedidos de demostración (los productos están en la base de datos).
-TIENDA_DATOS = BASE_DIR / 'data' / 'tienda.local.json'
 
 # Única fuente de credenciales y roles del login de la tienda.
 USUARIOS_DATOS = BASE_DIR / 'data' / 'usuarios.json'
