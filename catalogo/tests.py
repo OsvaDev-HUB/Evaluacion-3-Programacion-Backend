@@ -429,6 +429,115 @@ class TiendaTests(CatalogoAisladoMixin, TestCase):
         self.assertContains(response, "No encontramos productos")
 
 
+class ReportesTests(CatalogoAisladoMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.cliente = get_user_model().objects.create_user("comprador", password="Clave-prueba-432!")
+        cls.administrador = get_user_model().objects.create_user("encargado", is_staff=True, password="Clave-prueba-432!")
+
+    def test_reportes_solo_para_administradores(self):
+        for ruta in (reverse("catalogo:reporte_categorias"), reverse("catalogo:reporte_stock")):
+            self.assertEqual(self.client.get(ruta).status_code, 302)
+            self.client.force_login(self.cliente)
+            self.assertEqual(self.client.get(ruta).status_code, 403)
+            self.client.logout()
+
+    def test_reporte_categorias_cuadra_con_los_productos(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:reporte_categorias"))
+        productos = list(Producto.objects.all())
+        totales = response.context["totales"]
+        # Se compara con un cálculo hecho a mano en Python, sin usar el ORM
+        self.assertEqual(totales["cantidad"], len(productos))
+        self.assertEqual(totales["total_stock"], sum(p.stock for p in productos))
+        self.assertEqual(totales["valor_inventario"], sum(p.precio * p.stock for p in productos))
+        categorias = response.context["categorias"]
+        self.assertEqual(len(categorias), 8)
+        electricas = next(f for f in categorias if f["categoria"] == "Herramientas eléctricas")
+        de_la_categoria = [p for p in productos if p.categoria == "Herramientas eléctricas"]
+        self.assertEqual(electricas["cantidad"], len(de_la_categoria))
+        self.assertEqual(electricas["total_stock"], sum(p.stock for p in de_la_categoria))
+        self.assertEqual(electricas["precio_promedio"], round(sum(p.precio for p in de_la_categoria) / len(de_la_categoria)))
+        self.assertEqual(sum(f["cantidad"] for f in categorias), len(productos))
+        self.assertEqual(response.context["mayor_valor"]["categoria"], "Herramientas eléctricas")
+
+    def test_reporte_stock_filtra_y_ordena_por_stock(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:reporte_stock"))
+        productos = list(response.context["productos"])
+        self.assertEqual(response.context["umbral"], 10)
+        self.assertEqual(len(productos), Producto.objects.filter(stock__lte=10).count())
+        self.assertTrue(all(p.stock <= 10 for p in productos))
+        self.assertEqual([p.stock for p in productos], sorted(p.stock for p in productos))
+        self.assertEqual(response.context["agotados"], Producto.objects.filter(stock=0).count())
+
+    def test_reporte_stock_con_umbral_y_categoria(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:reporte_stock"), {"umbral": 0, "categoria": "Seguridad"})
+        self.assertTrue(all(p.stock == 0 and p.categoria == "Seguridad" for p in response.context["productos"]))
+        # Un umbral que no es número vuelve al valor por defecto
+        response = self.client.get(reverse("catalogo:reporte_stock"), {"umbral": "abc"})
+        self.assertEqual(response.context["umbral"], 10)
+
+    def test_estadisticas_de_estado_y_mayor_valor(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:reporte_categorias"))
+        productos = list(Producto.objects.all())
+        estados = {e["clave"]: e["cantidad"] for e in response.context["estados_stock"]}
+        # Los cuatro niveles suman todos los productos y cuadran con un conteo a mano
+        self.assertEqual(sum(estados.values()), len(productos))
+        self.assertEqual(estados["agotado"], sum(p.stock == 0 for p in productos))
+        self.assertEqual(estados["critico"], sum(0 < p.stock <= 10 for p in productos))
+        self.assertEqual(estados["alto"], sum(p.stock > 30 for p in productos))
+        self.assertEqual(response.context["totales"]["agotados"], estados["agotado"])
+        ranking = response.context["productos_mayor_valor"]
+        esperado = sorted((p.precio * p.stock for p in productos), reverse=True)[:5]
+        self.assertEqual([p.valor_inventario for p in ranking], esperado)
+
+    def test_reporte_stock_calcula_unidades_para_llegar_al_umbral(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:reporte_stock"), {"umbral": 10})
+        faltan = sum(10 - p.stock for p in Producto.objects.filter(stock__lte=10))
+        self.assertEqual(response.context["unidades_faltantes"], faltan)
+
+    def test_exportar_reportes_a_excel(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        # Solo el administrador puede descargar
+        ruta = reverse("catalogo:exportar_categorias")
+        self.client.force_login(self.cliente)
+        self.assertEqual(self.client.get(ruta).status_code, 403)
+
+        self.client.force_login(self.administrador)
+        response = self.client.get(ruta)
+        self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.assertIn("attachment;", response["Content-Disposition"])
+        libro = load_workbook(BytesIO(response.content))
+        self.assertEqual(libro.sheetnames, ["Por categoría", "Estado del stock", "Mayor valor en bodega"])
+        hoja = libro["Por categoría"]
+        total = [celda.value for celda in hoja[hoja.max_row]]
+        self.assertEqual(total[0], "Total")
+        self.assertEqual(total[1], Producto.objects.count())
+        self.assertEqual(total[7], sum(p.precio * p.stock for p in Producto.objects.all()))
+        self.assertEqual(hoja["H2"].number_format, '"$"#,##0')
+
+        # El Excel de stock crítico respeta el umbral y la categoría
+        response = self.client.get(reverse("catalogo:exportar_stock"), {"umbral": 0, "categoria": "Seguridad"})
+        hoja = load_workbook(BytesIO(response.content)).active
+        filas = list(hoja.iter_rows(min_row=2, max_row=hoja.max_row - 1, values_only=True))
+        self.assertEqual(len(filas), Producto.objects.filter(stock=0, categoria="Seguridad").count())
+        self.assertTrue(all(fila[4] == 0 and fila[2] == "Seguridad" for fila in filas))
+
+    def test_reportes_aparecen_en_la_navegacion_de_base(self):
+        self.client.force_login(self.administrador)
+        response = self.client.get(reverse("catalogo:lista"))
+        self.assertContains(response, reverse("catalogo:reporte_categorias"))
+        self.assertContains(response, reverse("catalogo:reporte_stock"))
+        self.client.force_login(self.cliente)
+        self.assertNotContains(self.client.get(reverse("catalogo:lista")), reverse("catalogo:reporte_stock"))
+
+
 class CredencialesJSONTests(CatalogoAisladoMixin, TestCase):
     def ingresar(self, username="admin", password="AdminTornillo2026!"):
         return self.client.post(reverse("login"), {"username": username, "password": password})

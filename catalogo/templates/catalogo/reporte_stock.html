@@ -1,0 +1,79 @@
+{% extends 'catalogo/base.html' %}{% load tienda %}
+{% block title %}Stock crítico | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Stock crítico</h1>
+            <p>Productos con {{ umbral }} unidades o menos, ordenados del que tiene menos stock al que tiene más.</p>
+        </div>
+        <!-- El Excel lleva los mismos filtros que la página (umbral y categoría) -->
+        <a class="boton boton-secundario" href="{% url 'catalogo:exportar_stock' %}?umbral={{ umbral }}{% if categoria_elegida %}&amp;categoria={{ categoria_elegida|urlencode }}{% endif %}" download><svg class="icono" aria-hidden="true"><use href="#i-descargar"/></svg>Descargar Excel</a>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <dl class="resumen-inventario">
+        <div><dt>Productos en el reporte</dt><dd>{{ total }}</dd></div>
+        <div><dt>Agotados</dt><dd class="dato-agotado">{{ agotados }}</dd></div>
+        <div><dt>Por agotarse</dt><dd class="dato-critico">{{ por_agotarse }}</dd></div>
+        <div><dt>Unidades para llegar a {{ umbral }}</dt><dd>{{ unidades_faltantes }}</dd></div>
+    </dl>
+
+    <!-- El umbral y la categoría viajan por GET para que el reporte se pueda compartir con su URL -->
+    <form class="filtros-gestion" method="get">
+        <div>
+            <label for="umbral">Mostrar productos con stock igual o menor a</label>
+            <input id="umbral" name="umbral" type="number" min="0" max="1000" value="{{ umbral }}">
+        </div>
+        <div>
+            <label for="categoria-reporte">Categoría</label>
+            <select id="categoria-reporte" name="categoria">
+                <option value="">Todas</option>
+                {% for categoria in categorias %}<option value="{{ categoria }}" {% if categoria == categoria_elegida %}selected{% endif %}>{{ categoria }}</option>{% endfor %}
+            </select>
+        </div>
+        <button class="boton boton-secundario" type="submit">Actualizar reporte</button>
+        <a class="limpiar-filtros" href="{% url 'catalogo:reporte_stock' %}">Limpiar</a>
+    </form>
+
+    <div class="tabla-contenedor" role="region" aria-label="Productos con stock crítico" tabindex="0">
+        <table class="tabla-productos">
+            <thead>
+                <tr>
+                    <th scope="col">Producto</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col">Precio</th>
+                    <th scope="col">Stock</th>
+                    <th scope="col">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for producto in productos %}
+                <tr>
+                    <td>
+                        <div class="producto-tabla">
+                            <div class="miniatura-producto">{% include 'catalogo/componentes/imagen.html' %}</div>
+                            <div><strong>{{ producto.nombre }}</strong><small>F-{{ producto.id|stringformat:'03d' }}</small></div>
+                        </div>
+                    </td>
+                    <td>{{ producto.categoria }}</td>
+                    <td class="precio-tabla">{{ producto.precio|pesos }}</td>
+                    <td>{% include 'catalogo/componentes/ajuste_stock.html' with critico=True %}</td>
+                    <td><a class="boton boton-secundario" href="{% url 'catalogo:editar_producto' producto.id %}" aria-label="Reponer {{ producto.nombre }}">Reponer</a></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">
+                        <div class="estado-vacio">
+                            <svg class="icono" aria-hidden="true"><use href="#i-check"/></svg>
+                            <h3>Todo en orden</h3>
+                            <p>No hay productos con {{ umbral }} unidades o menos{% if categoria_elegida %} en {{ categoria_elegida }}{% endif %}.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

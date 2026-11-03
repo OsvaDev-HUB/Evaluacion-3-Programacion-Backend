@@ -1,4 +1,18 @@
 (() => {
+    // Menú de "Mi cuenta": se cierra al hacer clic fuera de él o al presionar Escape
+    const menuCuenta = document.querySelector('[data-menu-cuenta]');
+    if (menuCuenta) {
+        document.addEventListener('click', evento => {
+            if (menuCuenta.open && !menuCuenta.contains(evento.target)) menuCuenta.open = false;
+        });
+        document.addEventListener('keydown', evento => {
+            if (evento.key === 'Escape' && menuCuenta.open) {
+                menuCuenta.open = false;
+                menuCuenta.querySelector('summary').focus();
+            }
+        });
+    }
+
     const cabecera = document.querySelector('.encabezado-sitio');
     if (cabecera) {
         const ajustarEspacioCabecera = () => {

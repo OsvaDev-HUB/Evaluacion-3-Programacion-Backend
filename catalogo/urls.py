@@ -18,4 +18,8 @@ urlpatterns = [
     path("gestion/productos/<int:producto_id>/eliminar/", views.eliminar_producto, name="eliminar_producto"),
     path("gestion/productos/<int:producto_id>/stock/", views.ajustar_stock, name="ajustar_stock"),
     path("gestion/pedidos/", views.pedidos_gestion, name="pedidos_gestion"),
+    path("gestion/reportes/categorias/", views.reporte_categorias, name="reporte_categorias"),
+    path("gestion/reportes/categorias/excel/", views.exportar_reporte_categorias, name="exportar_categorias"),
+    path("gestion/reportes/stock-critico/", views.reporte_stock_critico, name="reporte_stock"),
+    path("gestion/reportes/stock-critico/excel/", views.exportar_stock_critico, name="exportar_stock"),
 ]

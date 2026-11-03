@@ -1,0 +1,12 @@
+{# Stock del producto con botones para restar o sumar una unidad #}
+<div class="ajuste-stock">
+    {% if producto.stock == 0 %}<span class="estado estado-agotado">Sin stock</span>
+    {% elif critico %}<span class="estado estado-critico">{{ producto.stock }} unidades</span>
+    {% else %}<span class="estado estado-disponible">{{ producto.stock }} unidades</span>{% endif %}
+    <form method="post" action="{% url 'catalogo:ajustar_stock' producto.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="boton-stock" type="submit" name="cambio" value="restar" aria-label="Restar una unidad a {{ producto.nombre }}" {% if not producto.stock %}disabled{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-menos"/></svg></button>
+        <button class="boton-stock" type="submit" name="cambio" value="sumar" aria-label="Sumar una unidad a {{ producto.nombre }}"><svg class="icono" aria-hidden="true"><use href="#i-plus"/></svg></button>
+    </form>
+</div>

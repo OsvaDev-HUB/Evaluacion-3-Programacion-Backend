@@ -10,8 +10,8 @@
     <link rel="icon" type="image/png" href="{% static 'catalogo/img/marca/favicon.png' %}">
     <link rel="apple-touch-icon" href="{% static 'catalogo/img/marca/apple-touch-icon.png' %}">
     <link rel="preload" href="{% static 'catalogo/fonts/LeagueGothic.ttf' %}" as="font" type="font/ttf" crossorigin>
-    <link rel="stylesheet" href="{% static 'catalogo/css/estilos.css' %}?v=31-ajuste-stock">
-    <script src="{% static 'catalogo/js/catalogo.js' %}?v=13-producto-foto" defer></script>
+    <link rel="stylesheet" href="{% static 'catalogo/css/estilos.css' %}?v=35-estadisticas">
+    <script src="{% static 'catalogo/js/catalogo.js' %}?v=14-menu-cuenta" defer></script>
 </head>
 <body>
     {% include 'catalogo/componentes/iconos.html' %}
@@ -30,10 +30,38 @@
             </form>
             {% endblock %}
             <nav class="acciones-cuenta" aria-label="Cuenta y carrito">
-                <a href="{% if user.is_authenticated %}{% url 'catalogo:cuenta' %}{% else %}{% url 'login' %}{% endif %}" class="acceso-cuenta" aria-label="Mi cuenta">
+                {% if user.is_authenticated %}
+                {% with pagina=request.resolver_match.url_name %}
+                <!-- Menú de la cuenta: <details> se abre y cierra sin JavaScript -->
+                <details class="menu-cuenta" data-menu-cuenta>
+                    <summary class="acceso-cuenta" aria-label="Menú de mi cuenta">
+                        <svg class="icono" aria-hidden="true"><use href="#i-user"/></svg>
+                        <span><small>Hola, {{ user.first_name|default:user.username }}</small><strong>Mi cuenta</strong></span>
+                        <svg class="icono icono-desplegar" aria-hidden="true"><use href="#i-desplegar"/></svg>
+                    </summary>
+                    <div class="menu-cuenta-panel">
+                        <p class="menu-cuenta-usuario"><strong>{{ user.get_full_name|default:user.username }}</strong><span>{% if user.is_staff %}Administrador de la tienda{% else %}{{ user.email|default:"Cliente" }}{% endif %}</span></p>
+                        {% if user.is_staff %}
+                        <nav class="menu-cuenta-grupo" aria-label="Gestión de la tienda">
+                            <a href="{% url 'catalogo:gestion' %}" {% if pagina == 'gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-box"/></svg>Productos y stock</a>
+                            <a href="{% url 'catalogo:pedidos_gestion' %}" {% if pagina == 'pedidos_gestion' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-cart"/></svg>Pedidos de la tienda</a>
+                            <a href="{% url 'catalogo:reporte_categorias' %}" {% if pagina == 'reporte_categorias' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-grid"/></svg>Resumen por categoría</a>
+                            <a href="{% url 'catalogo:reporte_stock' %}" {% if pagina == 'reporte_stock' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-capas"/></svg>Stock crítico</a>
+                        </nav>
+                        {% endif %}
+                        <div class="menu-cuenta-grupo">
+                            <a href="{% url 'catalogo:cuenta' %}" {% if pagina == 'cuenta' %}aria-current="page"{% endif %}><svg class="icono" aria-hidden="true"><use href="#i-user"/></svg>Mi cuenta</a>
+                            <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit"><svg class="icono" aria-hidden="true"><use href="#i-salir"/></svg>Cerrar sesión</button></form>
+                        </div>
+                    </div>
+                </details>
+                {% endwith %}
+                {% else %}
+                <a href="{% url 'login' %}" class="acceso-cuenta" aria-label="Mi cuenta">
                     <svg class="icono" aria-hidden="true"><use href="#i-user"/></svg>
-                    <span>{% if user.is_authenticated %}<small>Hola, {{ user.first_name|default:user.username }}</small>{% endif %}<strong>Mi cuenta</strong></span>
+                    <span><strong>Mi cuenta</strong></span>
                 </a>
+                {% endif %}
                 <a class="acceso-carrito" aria-label="Mi carrito" href="{% url 'catalogo:carrito' %}">
                     <svg class="icono" aria-hidden="true"><use href="#i-cart"/></svg><span>Carrito</span>
                     <span class="contador-carrito" data-carrito-contador aria-live="polite">{{ cantidad_carrito }}</span>
@@ -53,7 +81,6 @@
                 <a href="{% url 'catalogo:lista' %}?categoria=Gasfiter%C3%ADa#productos" {% if categoria_actual == 'Gasfitería' %}aria-current="page"{% endif %}>Gasfitería</a>
                 <a href="{% url 'catalogo:lista' %}?categoria=Fijaciones#productos" {% if categoria_actual == 'Fijaciones' %}aria-current="page"{% endif %}>Fijaciones</a>
                 <a href="{% url 'catalogo:lista' %}?categoria=Seguridad#productos" {% if categoria_actual == 'Seguridad' %}aria-current="page"{% endif %}>Seguridad</a>
-                {% if user.is_staff %}<a class="nav-gestion" href="{% url 'catalogo:gestion' %}">Administrar tienda <svg class="icono" aria-hidden="true"><use href="#i-arrow"/></svg></a>{% endif %}
             </div>
         </nav>
         {% endblock %}

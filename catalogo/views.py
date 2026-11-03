@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import Avg, Count, F, Max, Min, Q, Sum
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from .excel import agregar_hoja, nuevo_libro, respuesta_excel
 from .forms import PedidoForm, ProductoForm, RegistroForm
 from .models import Producto
 from .storage import editar_tienda, leer_tienda
@@ -344,6 +345,174 @@ def ajustar_stock(request, producto_id):
         messages.success(request, f"Stock de {producto.nombre}: {producto.stock} unidades.")
     # Vuelve a la misma tabla, manteniendo la búsqueda y los filtros
     return redirect(destino_seguro(request, "catalogo:gestion"))
+
+
+# Límites para clasificar el stock de un producto
+UMBRAL_STOCK_CRITICO = 10
+LIMITE_STOCK_NORMAL = 30
+
+
+def calcular_reporte_categorias():
+    """Reporte 1: todas las consultas del resumen por categoría, hechas con el ORM."""
+    valor = F("precio") * F("stock")  # dinero en bodega de cada producto
+
+    # values + annotate agrupa por categoría y calcula los datos de cada grupo
+    categorias = list(
+        Producto.objects.values("categoria")
+        .annotate(
+            cantidad=Count("id"),
+            agotados=Count("id", filter=Q(stock=0)),
+            total_stock=Sum("stock"),
+            precio_promedio=Avg("precio"),
+            precio_minimo=Min("precio"),
+            precio_maximo=Max("precio"),
+            valor_inventario=Sum(valor),
+        )
+        .order_by("categoria")
+    )
+    # aggregate calcula los mismos datos, pero para todo el catálogo
+    totales = Producto.objects.aggregate(
+        cantidad=Count("id"),
+        agotados=Count("id", filter=Q(stock=0)),
+        total_stock=Sum("stock"),
+        precio_promedio=Avg("precio"),
+        valor_inventario=Sum(valor),
+    )
+    valor_total = totales["valor_inventario"] or 0
+    totales["precio_promedio"] = round(totales["precio_promedio"] or 0)
+    for fila in categorias:
+        fila["precio_promedio"] = round(fila["precio_promedio"])
+        # Parte del valor total del inventario que representa la categoría
+        fila["porcentaje"] = round(fila["valor_inventario"] * 100 / valor_total) if valor_total else 0
+
+    # Cuántos productos hay en cada nivel de stock (Count con filter)
+    niveles = Producto.objects.aggregate(
+        agotado=Count("id", filter=Q(stock=0)),
+        critico=Count("id", filter=Q(stock__gt=0, stock__lte=UMBRAL_STOCK_CRITICO)),
+        normal=Count("id", filter=Q(stock__gt=UMBRAL_STOCK_CRITICO, stock__lte=LIMITE_STOCK_NORMAL)),
+        alto=Count("id", filter=Q(stock__gt=LIMITE_STOCK_NORMAL)),
+    )
+    estados_stock = [
+        {"clave": "agotado", "nombre": "Agotados", "rango": "0 unidades"},
+        {"clave": "critico", "nombre": "Stock crítico", "rango": f"1 a {UMBRAL_STOCK_CRITICO} unidades"},
+        {"clave": "normal", "nombre": "Stock normal", "rango": f"{UMBRAL_STOCK_CRITICO + 1} a {LIMITE_STOCK_NORMAL} unidades"},
+        {"clave": "alto", "nombre": "Stock alto", "rango": f"Más de {LIMITE_STOCK_NORMAL} unidades"},
+    ]
+    for estado in estados_stock:
+        estado["cantidad"] = niveles[estado["clave"]]
+        estado["porcentaje"] = round(estado["cantidad"] * 100 / totales["cantidad"]) if totales["cantidad"] else 0
+
+    # Los 5 productos con más dinero en bodega (annotate por producto + order_by)
+    productos_mayor_valor = list(
+        Producto.objects.annotate(valor_inventario=valor).order_by("-valor_inventario", "nombre")[:5]
+    )
+
+    return {
+        "categorias": categorias,
+        "totales": totales,
+        "mayor_valor": max(categorias, key=lambda fila: fila["valor_inventario"], default=None),
+        "estados_stock": estados_stock,
+        "productos_mayor_valor": productos_mayor_valor,
+        "umbral": UMBRAL_STOCK_CRITICO,
+    }
+
+
+@administrador_requerido
+def reporte_categorias(request):
+    return render(request, "catalogo/reporte_categorias.html", calcular_reporte_categorias())
+
+
+@administrador_requerido
+def exportar_reporte_categorias(request):
+    """Descarga el reporte 1 en Excel, con los mismos datos que se ven en la página."""
+    datos = calcular_reporte_categorias()
+    totales = datos["totales"]
+    libro = nuevo_libro()
+    agregar_hoja(
+        libro, "Por categoría",
+        ["Categoría", "Productos", "Agotados", "Unidades en stock", "Precio promedio",
+         "Precio mínimo", "Precio máximo", "Valor del inventario", "Parte del inventario"],
+        [[f["categoria"], f["cantidad"], f["agotados"], f["total_stock"], f["precio_promedio"],
+          f["precio_minimo"], f["precio_maximo"], f["valor_inventario"], f["porcentaje"] / 100]
+         for f in datos["categorias"]],
+        columnas_pesos=[5, 6, 7, 8], columnas_porcentaje=[9],
+        fila_total=["Total", totales["cantidad"], totales["agotados"], totales["total_stock"],
+                    totales["precio_promedio"], None, None, totales["valor_inventario"], 1 if totales["cantidad"] else 0],
+    )
+    agregar_hoja(
+        libro, "Estado del stock",
+        ["Estado", "Rango", "Productos", "Parte del catálogo"],
+        [[e["nombre"], e["rango"], e["cantidad"], e["porcentaje"] / 100] for e in datos["estados_stock"]],
+        columnas_porcentaje=[4],
+    )
+    agregar_hoja(
+        libro, "Mayor valor en bodega",
+        ["Código", "Producto", "Categoría", "Precio", "Stock", "Valor en bodega"],
+        [[f"F-{p.id:03d}", p.nombre, p.categoria, p.precio, p.stock, p.valor_inventario]
+         for p in datos["productos_mayor_valor"]],
+        columnas_pesos=[4, 6],
+    )
+    return respuesta_excel(libro, "reporte-por-categoria")
+
+
+def leer_umbral(request):
+    """Lee el umbral desde la URL (?umbral=); si no es un número válido usa el de defecto."""
+    try:
+        umbral = int(request.GET.get("umbral", UMBRAL_STOCK_CRITICO))
+    except ValueError:
+        return UMBRAL_STOCK_CRITICO
+    return min(max(umbral, 0), 1000)
+
+
+def calcular_stock_critico(umbral, categoria=""):
+    """Reporte 2: productos con stock igual o menor al umbral, con filter y order_by."""
+    productos = Producto.objects.filter(stock__lte=umbral)
+    if categoria:
+        productos = productos.filter(categoria=categoria)
+    # Primero los que tienen menos stock y, si empatan, por nombre
+    productos = productos.order_by("stock", "nombre")
+
+    resumen = productos.aggregate(
+        total=Count("id"),
+        agotados=Count("id", filter=Q(stock=0)),
+        unidades=Sum("stock"),
+    )
+    resumen["por_agotarse"] = resumen["total"] - resumen["agotados"]
+    # Unidades que faltan para que todos los productos del reporte lleguen al umbral
+    resumen["unidades_faltantes"] = umbral * resumen["total"] - (resumen["unidades"] or 0)
+    return productos, resumen
+
+
+@administrador_requerido
+def reporte_stock_critico(request):
+    umbral = leer_umbral(request)
+    categoria = request.GET.get("categoria", "")
+    productos, resumen = calcular_stock_critico(umbral, categoria)
+    return render(request, "catalogo/reporte_stock.html", {
+        "productos": productos,
+        "umbral": umbral,
+        "categoria_elegida": categoria,
+        "categorias": Producto.objects.order_by("categoria").values_list("categoria", flat=True).distinct(),
+        **resumen,
+    })
+
+
+@administrador_requerido
+def exportar_stock_critico(request):
+    """Descarga el reporte 2 en Excel, respetando el umbral y la categoría elegidos."""
+    umbral = leer_umbral(request)
+    productos, resumen = calcular_stock_critico(umbral, request.GET.get("categoria", ""))
+    libro = nuevo_libro()
+    agregar_hoja(
+        libro, "Stock crítico",
+        ["Código", "Producto", "Categoría", "Precio", "Stock", "Estado", "Unidades para llegar al umbral"],
+        [[f"F-{p.id:03d}", p.nombre, p.categoria, p.precio, p.stock,
+          "Agotado" if p.stock == 0 else "Por agotarse", umbral - p.stock] for p in productos],
+        columnas_pesos=[4],
+        fila_total=["Total", f"{resumen['total']} productos", None, None, resumen["unidades"] or 0,
+                    f"{resumen['agotados']} agotados", resumen["unidades_faltantes"]],
+    )
+    return respuesta_excel(libro, f"stock-critico-umbral-{umbral}")
 
 
 @administrador_requerido

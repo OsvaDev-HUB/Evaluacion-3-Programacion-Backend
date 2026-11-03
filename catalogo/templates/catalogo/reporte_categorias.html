@@ -1,0 +1,127 @@
+{% extends 'catalogo/base.html' %}{% load tienda %}
+{% block title %}Resumen por categoría | El Tornillo{% endblock %}
+{% block content %}
+<div class="contenedor pagina-interior">
+    <header class="cabecera-seccion">
+        <div>
+            <h1>Resumen por categoría</h1>
+            <p>Productos, unidades y precios de cada categoría, calculados desde la base de datos.</p>
+        </div>
+        <a class="boton boton-secundario" href="{% url 'catalogo:exportar_categorias' %}" download><svg class="icono" aria-hidden="true"><use href="#i-descargar"/></svg>Descargar Excel</a>
+    </header>
+    {% include 'catalogo/componentes/nav_gestion.html' %}
+
+    <!-- Totales de todo el catálogo (aggregate) -->
+    <dl class="resumen-inventario">
+        <div><dt>Productos</dt><dd>{{ totales.cantidad }}</dd></div>
+        <div><dt>Unidades en stock</dt><dd>{{ totales.total_stock|default:0 }}</dd></div>
+        <div><dt>Precio promedio</dt><dd>{{ totales.precio_promedio|pesos }}</dd></div>
+        <div><dt>Valor del inventario</dt><dd>{{ totales.valor_inventario|default:0|pesos }}</dd></div>
+    </dl>
+
+    <!-- Un renglón por categoría (values + annotate) -->
+    <div class="tabla-contenedor" role="region" aria-label="Resumen por categoría" tabindex="0">
+        <table class="tabla-productos tabla-reporte">
+            <thead>
+                <tr>
+                    <th scope="col">Categoría</th>
+                    <th scope="col" class="numero">Productos</th>
+                    <th scope="col" class="numero">Agotados</th>
+                    <th scope="col" class="numero">Unidades en stock</th>
+                    <th scope="col" class="numero">Precio promedio</th>
+                    <th scope="col" class="numero">Rango de precios</th>
+                    <th scope="col" class="numero">Valor del inventario</th>
+                    <th scope="col">Parte del inventario</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in categorias %}
+                <tr>
+                    <th scope="row"><div class="categoria-reporte"><a class="enlace-tabla" href="{% url 'catalogo:gestion' %}?q={{ fila.categoria|urlencode }}">{{ fila.categoria }}</a>{% if fila.categoria == mayor_valor.categoria %}<span class="estado estado-mayor">Mayor valor</span>{% endif %}</div></th>
+                    <td class="numero">{{ fila.cantidad }}</td>
+                    <td class="numero{% if fila.agotados %} dato-agotado{% endif %}">{{ fila.agotados }}</td>
+                    <td class="numero">{{ fila.total_stock }}</td>
+                    <td class="numero">{{ fila.precio_promedio|pesos }}</td>
+                    <td class="numero">{{ fila.precio_minimo|pesos }} – {{ fila.precio_maximo|pesos }}</td>
+                    <td class="numero precio-tabla">{{ fila.valor_inventario|pesos }}</td>
+                    <td>
+                        <div class="barra-reporte">
+                            <span class="barra-pista" aria-hidden="true"><span class="barra-relleno" style="width: {{ fila.porcentaje }}%"></span></span>
+                            <span class="barra-valor">{{ fila.porcentaje }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8">Todavía no hay productos en la tienda.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if categorias %}
+            <tfoot>
+                <tr>
+                    <th scope="row">Total</th>
+                    <td class="numero">{{ totales.cantidad }}</td>
+                    <td class="numero">{{ totales.agotados }}</td>
+                    <td class="numero">{{ totales.total_stock }}</td>
+                    <td class="numero">{{ totales.precio_promedio|pesos }}</td>
+                    <td></td>
+                    <td class="numero precio-tabla">{{ totales.valor_inventario|pesos }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    <p class="nota-reporte">El valor del inventario es el precio multiplicado por el stock de cada producto. Haz clic en una categoría para ver sus productos.</p>
+
+    {% if categorias %}
+    <div class="reporte-secciones">
+        <!-- Cuántos productos hay en cada nivel de stock (aggregate con Count y filter) -->
+        <section class="reporte-seccion" aria-labelledby="titulo-estado-stock">
+            <header class="reporte-seccion-cabecera">
+                <h2 id="titulo-estado-stock">Estado del stock</h2>
+                <p>Cómo se reparten los {{ totales.cantidad }} productos según las unidades que les quedan.</p>
+            </header>
+            <div class="distribucion-stock" aria-hidden="true">
+                {% for estado in estados_stock %}{% if estado.cantidad %}<span class="segmento segmento-{{ estado.clave }}" style="flex-grow: {{ estado.cantidad }}"></span>{% endif %}{% endfor %}
+            </div>
+            <ul class="leyenda-stock">
+                {% for estado in estados_stock %}
+                <li>
+                    <span class="muestra segmento-{{ estado.clave }}" aria-hidden="true"></span>
+                    <span class="leyenda-texto">
+                        {% if estado.clave == 'agotado' %}<a class="enlace-tabla" href="{% url 'catalogo:reporte_stock' %}?umbral=0">{{ estado.nombre }}</a>
+                        {% elif estado.clave == 'critico' %}<a class="enlace-tabla" href="{% url 'catalogo:reporte_stock' %}?umbral={{ umbral }}">{{ estado.nombre }}</a>
+                        {% else %}<strong>{{ estado.nombre }}</strong>{% endif %}
+                        <small>{{ estado.rango }}</small>
+                    </span>
+                    <span class="leyenda-cifra">{{ estado.cantidad }}</span>
+                    <span class="leyenda-porcentaje">{{ estado.porcentaje }}%</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+
+        <!-- Los 5 productos con más dinero en bodega (annotate + order_by) -->
+        <section class="reporte-seccion" aria-labelledby="titulo-mayor-valor">
+            <header class="reporte-seccion-cabecera">
+                <h2 id="titulo-mayor-valor">Mayor valor en bodega</h2>
+                <p>Los cinco productos que concentran más dinero en stock.</p>
+            </header>
+            <ol class="ranking-valor">
+                {% for producto in productos_mayor_valor %}
+                <li>
+                    <span class="ranking-posicion">{{ forloop.counter }}</span>
+                    <div class="miniatura-producto">{% include 'catalogo/componentes/imagen.html' %}</div>
+                    <div class="ranking-producto">
+                        <a class="enlace-tabla" href="{% url 'catalogo:editar_producto' producto.id %}">{{ producto.nombre }}</a>
+                        <small>{{ producto.stock }} unidades × {{ producto.precio|pesos }}</small>
+                    </div>
+                    <strong class="ranking-monto">{{ producto.valor_inventario|pesos }}</strong>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
