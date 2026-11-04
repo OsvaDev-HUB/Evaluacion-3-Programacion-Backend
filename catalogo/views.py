@@ -105,7 +105,8 @@ def inicio(request):
 def lista_productos(request):
     productos = cargar_productos()
     filtrados, filtros = filtrar_productos(productos, request)
-    return render(request, "catalogo/lista.html", {"productos": filtrados, **resumen(productos), **filtros})
+    return render(request, "catalogo/lista.html", {"productos": filtrados, "total_resultados": len(filtrados),
+                                                   **resumen(productos), **filtros})
 
 
 VISTOS_MAXIMO = 3
@@ -330,7 +331,7 @@ def cuenta(request):
     correo = request.user.email.lower()
     suscripcion = Suscripcion.objects.filter(correo=correo).first() if correo else None
     return render(request, "catalogo/cuenta.html", {
-        "pedidos": request.user.pedidos.prefetch_related("detalles"),
+        "pedidos": request.user.pedidos.prefetch_related("detalles").annotate(cantidad_productos=Count("detalles")),
         "consultas": request.user.consultas.select_related("producto"),
         "perfil": PerfilCliente.objects.filter(usuario=request.user).first(),
         "suscrito": bool(suscripcion and suscripcion.activa),
@@ -742,6 +743,7 @@ def suscriptores_gestion(request):
     conteo = Suscripcion.objects.aggregate(
         activas=Count("id", filter=Q(activa=True)),
         inactivas=Count("id", filter=Q(activa=False)),
+        total=Count("id"),
     )
     return render(request, "catalogo/suscriptores_gestion.html", {"suscripciones": Suscripcion.objects.all(), **conteo})
 

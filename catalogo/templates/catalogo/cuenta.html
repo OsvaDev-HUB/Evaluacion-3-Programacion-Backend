@@ -23,7 +23,7 @@
                     <header class="pedido-cuenta-cabecera">
                         <div>
                             <h3><a class="enlace-tabla" href="{% url 'catalogo:pedido' pedido.codigo %}">Pedido #{{ pedido.codigo }}</a></h3>
-                            <p>{{ pedido.fecha|date:'d-m-Y' }} · {{ pedido.detalles.all|length }} producto{{ pedido.detalles.all|length|pluralize }}</p>
+                            <p>{{ pedido.fecha|date:'d-m-Y' }} · {{ pedido.cantidad_productos }} producto{{ pedido.cantidad_productos|pluralize }}</p>
                         </div>
                         {% include 'catalogo/componentes/estado_pedido.html' %}
                         <strong class="pedido-cuenta-total">{{ pedido.total|pesos }}</strong>
