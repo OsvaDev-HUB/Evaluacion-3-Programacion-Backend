@@ -35,4 +35,5 @@ urlpatterns = [
     path("gestion/reportes/categorias/excel/", views.exportar_reporte_categorias, name="exportar_categorias"),
     path("gestion/reportes/stock-critico/", views.reporte_stock_critico, name="reporte_stock"),
     path("gestion/reportes/stock-critico/excel/", views.exportar_stock_critico, name="exportar_stock"),
+    path("gestion/reportes/global/excel/", views.exportar_reporte_global, name="exportar_global"),
 ]

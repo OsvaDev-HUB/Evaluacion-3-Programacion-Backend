@@ -8,4 +8,6 @@
     <a href="{% url 'catalogo:suscriptores_gestion' %}" {% if pagina == 'suscriptores_gestion' %}aria-current="page"{% endif %}>Suscriptores</a>
     {% if user.is_superuser %}<a href="{% url 'admin:auth_user_changelist' %}">Usuarios</a>{% endif %}
     <a href="{% url 'catalogo:lista' %}">Ver tienda</a>
+    {# No es una pestaña: descarga un Excel con la información de todo el panel #}
+    <a class="tabs-gestion-descarga" href="{% url 'catalogo:exportar_global' %}" download><svg class="icono" aria-hidden="true"><use href="#i-descargar"/></svg>Excel global</a>
 </nav>{% endwith %}

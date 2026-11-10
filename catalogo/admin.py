@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from .forms import EstadoPedidoForm
 from .models import ConsultaCliente, DetallePedido, Pedido, PerfilCliente, Producto, Suscripcion
 
 
@@ -18,6 +19,16 @@ class DetallePedidoInline(admin.TabularInline):
     model = DetallePedido
     extra = 0
 
+    # Los productos solo se ven: cambiarlos descuadraría el stock y el total del pedido
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Pedido)
 class PedidoAdmin(admin.ModelAdmin):
@@ -25,6 +36,28 @@ class PedidoAdmin(admin.ModelAdmin):
     list_filter = ('estado',)
     search_fields = ('codigo', 'nombre', 'email')
     inlines = [DetallePedidoInline]
+    # Se usa el mismo formulario del panel de gestión para validar los cambios de estado
+    form = EstadoPedidoForm
+    fields = ('codigo', 'usuario', 'token', 'nombre', 'email', 'telefono', 'total', 'estado')
+
+    def has_change_permission(self, request, obj=None):
+        # Un pedido cancelado o entregado solo se puede ver, no editar
+        if obj is not None and obj.estado_final:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        # Solo se borran pedidos cancelados: los demás todavía tienen stock descontado.
+        # Django revisa esto para cada pedido, también al borrar varios desde la lista
+        if obj is not None and obj.estado != Pedido.CANCELADO:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def save_model(self, request, obj, form, change):
+        # Igual que en el panel: al cancelar, las unidades vuelven al inventario
+        if change and 'estado' in form.changed_data and obj.estado == Pedido.CANCELADO:
+            obj.devolver_stock()
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ConsultaCliente)

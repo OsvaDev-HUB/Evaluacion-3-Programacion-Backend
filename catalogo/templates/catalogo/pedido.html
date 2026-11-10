@@ -26,6 +26,24 @@
         </section>
 
         <!-- El administrador avanza el pedido; al cancelarlo, el stock vuelve a la tienda -->
+        {% if pedido.estado_final %}
+        <!-- Pedido cerrado: un candado en el color del estado reemplaza al formulario -->
+        <div class="detalle-admin-bloque estado-cerrado estado-cerrado-{{ pedido.estado }}">
+            <span class="estado-cerrado-marca" aria-hidden="true">
+                <svg class="icono candado" viewBox="0 0 24 24">
+                    <path class="candado-arco" d="M8 11V8a4 4 0 0 1 8 0v3"/>
+                    <rect x="5" y="11" width="14" height="10" rx="1"/>
+                    <path d="M12 15v2"/>
+                </svg>
+            </span>
+            <div>
+                <h2>Pedido cerrado</h2>
+                <p>
+                    Su estado ya no se puede cambiar: {% if pedido.estado == 'cancelado' %}un pedido cancelado no vuelve a activarse{% else %}el cliente ya retiró los productos{% endif %}.
+                </p>
+            </div>
+        </div>
+        {% else %}
         <form class="detalle-admin-bloque cambio-estado" method="post" action="{% url 'catalogo:cambiar_estado_pedido' pedido.codigo %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
@@ -35,6 +53,7 @@
             </div>
             <button class="boton boton-primario" type="submit">Guardar estado</button>
         </form>
+        {% endif %}
 
         <section class="detalle-admin-bloque contacto-pedido pedido-admin-cliente" aria-labelledby="titulo-cliente">
             <h2 id="titulo-cliente">Datos del cliente</h2>

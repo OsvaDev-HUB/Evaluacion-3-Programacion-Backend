@@ -136,8 +136,8 @@ class EstadoPedidoForm(forms.ModelForm):
         # self.instance.estado todavía tiene el estado guardado en la BD
         if self.instance.estado == Pedido.CANCELADO and estado != Pedido.CANCELADO:
             raise forms.ValidationError("Un pedido cancelado no se puede reactivar: su stock ya volvió a la tienda.")
-        if self.instance.estado == Pedido.ENTREGADO and estado == Pedido.CANCELADO:
-            raise forms.ValidationError("Un pedido entregado no se puede cancelar: el cliente ya retiró los productos.")
+        if self.instance.estado == Pedido.ENTREGADO and estado != Pedido.ENTREGADO:
+            raise forms.ValidationError("Un pedido entregado no se puede cambiar: el cliente ya retiró los productos.")
         return estado
 
 

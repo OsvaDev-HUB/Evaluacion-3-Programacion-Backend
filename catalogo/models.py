@@ -59,6 +59,11 @@ class Pedido(models.Model):
         # El cliente solo cancela mientras la tienda no empieza a prepararlo
         return self.estado == self.RECIBIDO
 
+    @property
+    def estado_final(self):
+        # Cancelado y entregado cierran el pedido: su estado ya no cambia
+        return self.estado in (self.CANCELADO, self.ENTREGADO)
+
     def pasos(self):
         """Pasos del rastreo con su situación: hecho, actual o pendiente."""
         orden = [self.RECIBIDO, self.PREPARANDO, self.LISTO, self.ENTREGADO]

@@ -575,12 +575,10 @@ def reporte_categorias(request):
     return render(request, "catalogo/reporte_categorias.html", calcular_reporte_categorias())
 
 
-@administrador_requerido
-def exportar_reporte_categorias(request):
-    """Descarga el reporte 1 en Excel, con los mismos datos que se ven en la página."""
+def hojas_categorias(libro):
+    """Agrega al libro las hojas del reporte por categoría."""
     datos = calcular_reporte_categorias()
     totales = datos["totales"]
-    libro = nuevo_libro()
     agregar_hoja(
         libro, "Por categoría",
         ["Categoría", "Productos", "Agotados", "Unidades en stock", "Precio promedio",
@@ -597,14 +595,24 @@ def exportar_reporte_categorias(request):
         ["Estado", "Rango", "Productos", "Parte del catálogo"],
         [[e["nombre"], e["rango"], e["cantidad"], e["porcentaje"] / 100] for e in datos["estados_stock"]],
         columnas_porcentaje=[4],
+        fila_total=["Total", None, totales["cantidad"], 1 if totales["cantidad"] else 0],
     )
+    mayor_valor = datos["productos_mayor_valor"]
     agregar_hoja(
         libro, "Mayor valor en bodega",
         ["Código", "Producto", "Categoría", "Precio", "Stock", "Valor en bodega"],
-        [[f"F-{p.id:03d}", p.nombre, p.categoria, p.precio, p.stock, p.valor_inventario]
-         for p in datos["productos_mayor_valor"]],
+        [[f"F-{p.id:03d}", p.nombre, p.categoria, p.precio, p.stock, p.valor_inventario] for p in mayor_valor],
         columnas_pesos=[4, 6],
+        fila_total=["Total", f"{len(mayor_valor)} productos", None, None,
+                    sum(p.stock for p in mayor_valor), sum(p.valor_inventario for p in mayor_valor)],
     )
+
+
+@administrador_requerido
+def exportar_reporte_categorias(request):
+    """Descarga el reporte 1 en Excel, con los mismos datos que se ven en la página."""
+    libro = nuevo_libro()
+    hojas_categorias(libro)
     return respuesta_excel(libro, "reporte-por-categoria")
 
 
@@ -650,12 +658,9 @@ def reporte_stock_critico(request):
     })
 
 
-@administrador_requerido
-def exportar_stock_critico(request):
-    """Descarga el reporte 2 en Excel, respetando el umbral y la categoría elegidos."""
-    umbral = leer_umbral(request)
-    productos, resumen = calcular_stock_critico(umbral, request.GET.get("categoria", ""))
-    libro = nuevo_libro()
+def hoja_stock_critico(libro, umbral, categoria=""):
+    """Agrega al libro la hoja de stock crítico."""
+    productos, resumen = calcular_stock_critico(umbral, categoria)
     agregar_hoja(
         libro, "Stock crítico",
         ["Código", "Producto", "Categoría", "Precio", "Stock", "Estado", "Unidades para llegar al umbral"],
@@ -665,6 +670,14 @@ def exportar_stock_critico(request):
         fila_total=["Total", f"{resumen['total']} productos", None, None, resumen["unidades"] or 0,
                     f"{resumen['agotados']} agotados", resumen["unidades_faltantes"]],
     )
+
+
+@administrador_requerido
+def exportar_stock_critico(request):
+    """Descarga el reporte 2 en Excel, respetando el umbral y la categoría elegidos."""
+    umbral = leer_umbral(request)
+    libro = nuevo_libro()
+    hoja_stock_critico(libro, umbral, request.GET.get("categoria", ""))
     return respuesta_excel(libro, f"stock-critico-umbral-{umbral}")
 
 
@@ -748,15 +761,23 @@ def suscriptores_gestion(request):
     return render(request, "catalogo/suscriptores_gestion.html", {"suscripciones": Suscripcion.objects.all(), **conteo})
 
 
-@administrador_requerido
-def exportar_suscriptores(request):
-    libro = nuevo_libro()
+def hoja_suscriptores(libro):
+    """Agrega al libro la hoja de suscriptores a las ofertas."""
+    suscripciones = list(Suscripcion.objects.all())
+    activas = sum(s.activa for s in suscripciones)
     agregar_hoja(
         libro, "Suscriptores",
         ["Correo", "Estado", "Fecha de inscripción"],
         [[s.correo, "Activa" if s.activa else "Dada de baja", f"{timezone.localtime(s.fecha):%d-%m-%Y %H:%M}"]
-         for s in Suscripcion.objects.all()],
+         for s in suscripciones],
+        fila_total=["Total", f"{activas} activas de {len(suscripciones)}", None],
     )
+
+
+@administrador_requerido
+def exportar_suscriptores(request):
+    libro = nuevo_libro()
+    hoja_suscriptores(libro)
     return respuesta_excel(libro, "suscriptores-ofertas")
 
 
@@ -800,15 +821,18 @@ def reporte_ventas(request):
     return render(request, "catalogo/reporte_ventas.html", calcular_reporte_ventas())
 
 
-@administrador_requerido
-def exportar_reporte_ventas(request):
+def hojas_ventas(libro):
+    """Agrega al libro las hojas del reporte de ventas."""
     datos = calcular_reporte_ventas()
-    libro = nuevo_libro()
+    mas_vendidos = datos["mas_vendidos"]
     agregar_hoja(
         libro, "Más vendidos",
         ["Posición", "Producto", "Unidades vendidas", "Pedidos", "Ingresos"],
-        [[indice, f["nombre"], f["unidades"], f["pedidos"], f["ingresos"]] for indice, f in enumerate(datos["mas_vendidos"], start=1)],
+        [[indice, f["nombre"], f["unidades"], f["pedidos"], f["ingresos"]] for indice, f in enumerate(mas_vendidos, start=1)],
         columnas_pesos=[5],
+        # Los pedidos no se suman: un mismo pedido puede tener varios de estos productos
+        fila_total=["Total", f"{len(mas_vendidos)} productos", sum(f["unidades"] for f in mas_vendidos),
+                    None, sum(f["ingresos"] for f in mas_vendidos)],
     )
     agregar_hoja(
         libro, "Ingresos por categoría",
@@ -823,4 +847,67 @@ def exportar_reporte_ventas(request):
         [[e["nombre"], e["cantidad"]] for e in datos["por_estado"]],
         fila_total=["Total", datos["total_pedidos"]],
     )
+
+
+@administrador_requerido
+def exportar_reporte_ventas(request):
+    libro = nuevo_libro()
+    hojas_ventas(libro)
     return respuesta_excel(libro, "reporte-ventas")
+
+
+def hoja_productos(libro):
+    """Agrega al libro el inventario completo, producto por producto."""
+    productos = list(Producto.objects.order_by("categoria", "nombre"))
+    agregar_hoja(
+        libro, "Productos",
+        ["Código", "Producto", "Categoría", "Precio", "Stock", "Valor en bodega"],
+        [[f"F-{p.id:03d}", p.nombre, p.categoria, p.precio, p.stock, p.precio * p.stock] for p in productos],
+        columnas_pesos=[4, 6],
+        fila_total=["Total", f"{len(productos)} productos", None, None,
+                    sum(p.stock for p in productos), sum(p.precio * p.stock for p in productos)],
+    )
+
+
+def hoja_pedidos(libro):
+    """Agrega al libro todos los pedidos. Los cancelados se muestran, pero no suman al total."""
+    pedidos = list(Pedido.objects.all())
+    cancelados = sum(p.estado == Pedido.CANCELADO for p in pedidos)
+    agregar_hoja(
+        libro, "Pedidos",
+        ["Código", "Fecha", "Cliente", "Correo", "Estado", "Total"],
+        [[p.codigo, f"{timezone.localtime(p.fecha):%d-%m-%Y %H:%M}", p.nombre, p.email, p.get_estado_display(), p.total]
+         for p in pedidos],
+        columnas_pesos=[6],
+        fila_total=["Total", f"{len(pedidos)} pedidos", None, None,
+                    f"{cancelados} cancelado{'s' if cancelados != 1 else ''} (no suma{'n' if cancelados != 1 else ''})",
+                    sum(p.total for p in pedidos if p.estado != Pedido.CANCELADO)],
+    )
+
+
+def hoja_consultas(libro):
+    """Agrega al libro las consultas de los clientes."""
+    consultas = list(ConsultaCliente.objects.select_related("producto").order_by("-fecha"))
+    pendientes = sum(not c.respondida for c in consultas)
+    agregar_hoja(
+        libro, "Consultas",
+        ["Fecha", "Nombre", "Correo", "Producto de interés", "Estado"],
+        [[f"{timezone.localtime(c.fecha):%d-%m-%Y %H:%M}", c.nombre, c.correo,
+          c.producto.nombre if c.producto else "Sin producto", "Respondida" if c.respondida else "Pendiente"]
+         for c in consultas],
+        fila_total=["Total", f"{len(consultas)} consultas", None, None, f"{pendientes} pendientes"],
+    )
+
+
+@administrador_requerido
+def exportar_reporte_global(request):
+    """Un solo Excel con toda la información de la tienda: una hoja por tema, cada una con su total."""
+    libro = nuevo_libro()
+    hoja_productos(libro)
+    hojas_categorias(libro)
+    hoja_stock_critico(libro, UMBRAL_STOCK_CRITICO)
+    hoja_pedidos(libro)
+    hojas_ventas(libro)
+    hoja_consultas(libro)
+    hoja_suscriptores(libro)
+    return respuesta_excel(libro, "reporte-global")

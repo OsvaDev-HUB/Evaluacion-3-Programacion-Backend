@@ -40,6 +40,8 @@
                     <td>
                         {% if pedido.estado == 'cancelado' %}
                         <span class="texto-secundario">Sin cambios: ya se canceló</span>
+                        {% elif pedido.estado == 'entregado' %}
+                        <span class="texto-secundario">Sin cambios: ya se entregó</span>
                         {% else %}
                         <form class="cambio-estado-fila" method="post" action="{% url 'catalogo:cambiar_estado_pedido' pedido.codigo %}">
                             {% csrf_token %}

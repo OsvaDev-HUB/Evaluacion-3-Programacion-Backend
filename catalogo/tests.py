@@ -529,6 +529,38 @@ class ReportesTests(CatalogoAisladoMixin, TestCase):
         self.assertEqual(len(filas), Producto.objects.filter(stock=0, categoria="Seguridad").count())
         self.assertTrue(all(fila[4] == 0 and fila[2] == "Seguridad" for fila in filas))
 
+    def test_todos_los_excel_tienen_total_y_existe_el_global(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+
+        # Solo el administrador puede descargar el Excel global
+        ruta_global = reverse("catalogo:exportar_global")
+        self.client.force_login(self.cliente)
+        self.assertEqual(self.client.get(ruta_global).status_code, 403)
+        self.client.force_login(self.administrador)
+
+        # Cada hoja de cada Excel termina en una fila de total
+        for nombre in ["exportar_categorias", "exportar_stock", "exportar_ventas", "exportar_suscriptores", "exportar_global"]:
+            libro = load_workbook(BytesIO(self.client.get(reverse(f"catalogo:{nombre}")).content))
+            for hoja in libro.worksheets:
+                with self.subTest(excel=nombre, hoja=hoja.title):
+                    self.assertEqual(hoja.cell(hoja.max_row, 1).value, "Total")
+
+        # El global junta toda la información en un solo archivo
+        response = self.client.get(ruta_global)
+        self.assertIn("reporte-global", response["Content-Disposition"])
+        libro = load_workbook(BytesIO(response.content))
+        self.assertEqual(libro.sheetnames, [
+            "Productos", "Por categoría", "Estado del stock", "Mayor valor en bodega", "Stock crítico",
+            "Pedidos", "Más vendidos", "Ingresos por categoría", "Pedidos por estado", "Consultas", "Suscriptores",
+        ])
+        hoja = libro["Productos"]
+        productos = Producto.objects.all()
+        self.assertEqual(hoja.max_row, productos.count() + 2)
+        total = [celda.value for celda in hoja[hoja.max_row]]
+        self.assertEqual(total[4], sum(p.stock for p in productos))
+        self.assertEqual(total[5], sum(p.precio * p.stock for p in productos))
+
     def test_reportes_aparecen_en_la_navegacion_de_base(self):
         self.client.force_login(self.administrador)
         response = self.client.get(reverse("catalogo:lista"))
@@ -790,9 +822,88 @@ class ClientesTests(CatalogoAisladoMixin, TestCase):
         entregado.refresh_from_db()
         self.assertEqual(entregado.estado, Pedido.ENTREGADO)
         self.assertEqual(Producto.objects.get(pk=2).stock, stock)
+        # Tampoco se puede devolver a "recibido" para cancelarlo después
+        self.client.post(reverse("catalogo:cambiar_estado_pedido", args=[entregado.codigo]), {"estado": "recibido"})
+        entregado.refresh_from_db()
+        self.assertEqual(entregado.estado, Pedido.ENTREGADO)
+        # En el detalle de un pedido cerrado no aparece el formulario de estado
+        response = self.client.get(reverse("catalogo:pedido", args=[cancelado.codigo]))
+        self.assertNotContains(response, "Guardar estado")
+        self.assertContains(response, "Pedido cerrado")
         # Filtro por estado en la lista de pedidos
         response = self.client.get(reverse("catalogo:pedidos_gestion"), {"estado": "cancelado"})
         self.assertEqual(list(response.context["pedidos"]), [cancelado])
+
+    def datos_admin_pedido(self, pedido, estado):
+        """Datos que envía el formulario del admin de Django al guardar un pedido."""
+        detalles = list(pedido.detalles.all())
+        datos = {
+            "codigo": pedido.codigo, "usuario": pedido.usuario_id, "token": pedido.token,
+            "nombre": pedido.nombre, "email": pedido.email, "telefono": pedido.telefono,
+            "total": pedido.total, "estado": estado,
+            "detalles-TOTAL_FORMS": len(detalles), "detalles-INITIAL_FORMS": len(detalles),
+            "detalles-MIN_NUM_FORMS": 0, "detalles-MAX_NUM_FORMS": 1000,
+        }
+        for i, detalle in enumerate(detalles):
+            datos.update({
+                f"detalles-{i}-id": detalle.id, f"detalles-{i}-pedido": pedido.id,
+                f"detalles-{i}-producto": detalle.producto_id, f"detalles-{i}-nombre": detalle.nombre,
+                f"detalles-{i}-precio": detalle.precio, f"detalles-{i}-cantidad": detalle.cantidad,
+            })
+        return datos
+
+    def test_admin_de_django_respeta_los_estados_del_pedido(self):
+        jefe = get_user_model().objects.create_superuser("jefe", password="Clave-prueba-432!")
+        self.client.force_login(self.cliente)
+        pedido = self.comprar(cantidad=3)
+        entregado = self.comprar(producto_id=2)
+        stock = Producto.objects.get(pk=1).stock
+        self.client.force_login(jefe, backend="catalogo.backends.SuperusuarioBackend")
+        ruta = reverse("admin:catalogo_pedido_change", args=[pedido.pk])
+        # Cancelar desde el admin también devuelve el stock
+        response = self.client.post(ruta, self.datos_admin_pedido(pedido, "cancelado"))
+        self.assertRedirects(response, reverse("admin:catalogo_pedido_changelist"))
+        self.assertEqual(Producto.objects.get(pk=1).stock, stock + 3)
+        # Ya cancelado, el admin solo lo muestra y no deja guardar cambios
+        self.assertNotContains(self.client.get(ruta), 'name="_save"')
+        self.assertEqual(self.client.post(ruta, self.datos_admin_pedido(pedido, "recibido")).status_code, 403)
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.estado, Pedido.CANCELADO)
+        self.assertEqual(Producto.objects.get(pk=1).stock, stock + 3)
+        # Un pedido entregado tampoco se puede editar
+        ruta = reverse("admin:catalogo_pedido_change", args=[entregado.pk])
+        self.client.post(ruta, self.datos_admin_pedido(entregado, "entregado"))
+        self.assertEqual(self.client.post(ruta, self.datos_admin_pedido(entregado, "cancelado")).status_code, 403)
+        entregado.refresh_from_db()
+        self.assertEqual(entregado.estado, Pedido.ENTREGADO)
+
+    def test_admin_de_django_no_cambia_productos_ni_borra_pedidos_activos(self):
+        jefe = get_user_model().objects.create_superuser("jefe", password="Clave-prueba-432!")
+        self.client.force_login(self.cliente)
+        activo = self.comprar(cantidad=3)
+        cancelado = self.comprar(producto_id=2)
+        self.client.post(reverse("catalogo:cancelar_pedido", args=[cancelado.codigo]))
+        stock = Producto.objects.get(pk=1).stock
+        self.client.force_login(jefe, backend="catalogo.backends.SuperusuarioBackend")
+        # Los productos del pedido se ven, pero no se pueden editar
+        ruta = reverse("admin:catalogo_pedido_change", args=[activo.pk])
+        self.assertNotContains(self.client.get(ruta), 'name="detalles-0-cantidad"')
+        datos = self.datos_admin_pedido(activo, "preparando")
+        datos["detalles-0-cantidad"] = 1
+        self.client.post(ruta, datos)
+        activo.refresh_from_db()
+        self.assertEqual(activo.estado, Pedido.PREPARANDO)
+        self.assertEqual(activo.detalles.get().cantidad, 3)
+        # Un pedido activo no se borra, ni solo ni desde la lista
+        borrar = reverse("admin:catalogo_pedido_delete", args=[activo.pk])
+        self.assertEqual(self.client.post(borrar, {"post": "yes"}).status_code, 403)
+        self.client.post(reverse("admin:catalogo_pedido_changelist"),
+                         {"action": "delete_selected", "_selected_action": [activo.pk], "post": "yes"})
+        self.assertTrue(Pedido.objects.filter(pk=activo.pk).exists())
+        self.assertEqual(Producto.objects.get(pk=1).stock, stock)
+        # Un pedido cancelado sí se puede borrar
+        self.client.post(reverse("admin:catalogo_pedido_delete", args=[cancelado.pk]), {"post": "yes"})
+        self.assertFalse(Pedido.objects.filter(pk=cancelado.pk).exists())
 
     # --- Perfil y ofertas ---
 
@@ -848,7 +959,8 @@ class ClientesTests(CatalogoAisladoMixin, TestCase):
         response = self.client.get(reverse("catalogo:suscriptores_gestion"))
         self.assertEqual((response.context["activas"], response.context["inactivas"]), (1, 1))
         hoja = load_workbook(BytesIO(self.client.get(reverse("catalogo:exportar_suscriptores")).content)).active
-        self.assertEqual(hoja.max_row, 3)
+        # Encabezado, 2 suscriptores y la fila de total
+        self.assertEqual(hoja.max_row, 4)
 
     # --- Reporte de ventas ---
 

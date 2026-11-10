@@ -25,9 +25,10 @@ def nuevo_libro():
     return libro
 
 
-def agregar_hoja(libro, titulo, encabezados, filas, columnas_pesos=(), columnas_porcentaje=(), fila_total=None):
-    """Agrega una hoja con encabezado, filas y (opcional) una fila de total.
+def agregar_hoja(libro, titulo, encabezados, filas, fila_total, columnas_pesos=(), columnas_porcentaje=()):
+    """Agrega una hoja con encabezado, filas y una fila de total al final.
 
+    fila_total es obligatoria: así ningún Excel queda sin su total.
     columnas_pesos y columnas_porcentaje son números de columna, empezando en 1.
     """
     hoja = libro.create_sheet(titulo)
@@ -40,11 +41,10 @@ def agregar_hoja(libro, titulo, encabezados, filas, columnas_pesos=(), columnas_
     for fila in filas:
         hoja.append(fila)
 
-    if fila_total:
-        hoja.append(fila_total)
-        for celda in hoja[hoja.max_row]:
-            celda.font = Font(bold=True)
-            celda.border = LINEA_TOTAL
+    hoja.append(fila_total)
+    for celda in hoja[hoja.max_row]:
+        celda.font = Font(bold=True)
+        celda.border = LINEA_TOTAL
 
     # Formato de pesos chilenos y de porcentaje en las columnas indicadas
     for columna in columnas_pesos:

@@ -145,8 +145,13 @@ input::placeholder, textarea::placeholder { color: #626a63; opacity: 1; }
 input[type='checkbox'], input[type='radio'] { min-height: auto; accent-color: var(--acento); }
 textarea { resize: vertical; }
 /* Portada: titular con cifras reales a la izquierda y el maestro sobre hexágonos tomados del logo. */
-.presentacion { overflow: hidden; background: var(--papel); border-bottom: 1px solid var(--borde-fuerte); }
-.presentacion-interior { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: clamp(32px, 4vw, 64px); min-height: clamp(560px, calc(100svh - var(--alto-cabecera)), 760px); }
+/* Fondo del hero: plano de una casa con medidas, en tonos naranjos.
+   El color de base es el mismo del borde de la imagen, para que no se note dónde empieza */
+.presentacion { position: relative; overflow: hidden; background: #f9e6df; border-bottom: 1px solid var(--borde-fuerte); }
+/* La imagen empieza un poco a la derecha para que la casa quede después del texto, junto al maestro.
+   Su borde izquierdo se desvanece y así las líneas del plano no se cruzan con las letras */
+.presentacion::before { content: ''; position: absolute; inset: 0 0 0 13%; background: url('../img/landing/fondo-hero.webp') left center / cover no-repeat; -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%); mask-image: linear-gradient(90deg, transparent, #000 30%); pointer-events: none; }
+.presentacion-interior { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: clamp(32px, 4vw, 64px); /* El hero ocupa toda la pantalla bajo la cabecera (el JS mide la cabecera real) */ min-height: max(560px, calc(100svh - var(--alto-cabecera))); }
 .presentacion-texto { position: relative; z-index: 2; grid-column: 1; grid-row: 1; align-self: center; padding-block: 48px 40px; }
 .presentacion-texto h1 { max-width: 16ch; font: 400 clamp(4rem, 6.4vw, 6rem)/.95 var(--rotulo); letter-spacing: -.01em; text-wrap: balance; }
 .presentacion-texto > p { max-width: 46ch; margin-top: 28px; color: var(--secundario); font-size: 1.125rem; line-height: 1.65; }
@@ -502,6 +507,9 @@ textarea { resize: vertical; }
 .tabs-gestion { display: flex; flex-wrap: wrap; gap: 26px; border-bottom: 1px solid var(--borde-fuerte); margin-bottom: 28px; }
 .tabs-gestion a { min-height: 48px; display: inline-flex; align-items: center; font-size: .875rem; border-bottom: 2px solid transparent; }
 .tabs-gestion a[aria-current] { color: var(--acento); font-weight: 600; border-color: var(--acento); }
+/* Descarga del Excel global: va a la derecha y con ícono, para que no parezca otra pestaña */
+.tabs-gestion .tabs-gestion-descarga { gap: 8px; margin-left: auto; font-weight: 600; }
+.tabs-gestion-descarga .icono { width: 18px; height: 18px; color: var(--acento); }
 .resumen-inventario { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 0 30px; border-block: 1px solid var(--borde-fuerte); background: var(--panel); }
 .resumen-inventario > div { padding: 22px 26px; }
 .resumen-inventario > div + div { border-left: 1px solid var(--borde); }
@@ -602,6 +610,14 @@ textarea { resize: vertical; }
 .rastreo-cancelado { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 12px 14px; background: #f5e9e6; color: var(--rojo); font-size: .875rem; }
 .rastreo-cancelado .icono { width: 18px; height: 18px; }
 
+/* Pedido cerrado (cancelado o entregado): marca cuadrada con candado, igual que las marcas del rastreo */
+.estado-cerrado { --estado: var(--rojo); --estado-fondo: #f5e9e6; --estado-texto: #5c2723; display: flex; align-items: flex-start; gap: 16px; margin-top: 24px; padding: 20px; background: var(--estado-fondo); color: var(--estado-texto); }
+.estado-cerrado-entregado { --estado: var(--verde); --estado-fondo: #e4eee5; --estado-texto: #1f3a29; }
+.estado-cerrado-marca { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; background: var(--estado); color: var(--papel); }
+.estado-cerrado-marca .icono { width: 24px; height: 24px; stroke-width: 2; overflow: visible; }
+.estado-cerrado h2 { color: var(--estado); font: 600 1.4rem/1.1 var(--titulo); }
+.estado-cerrado p { max-width: 42ch; margin-top: 6px; font-size: .9rem; line-height: 1.45; }
+
 /* Cambio de estado (detalle y tabla de pedidos) */
 .cambio-estado { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 24px; padding: 18px; background: var(--panel); }
 .cambio-estado select { min-width: 220px; }
@@ -635,6 +651,7 @@ textarea { resize: vertical; }
     .pedido-admin-rastreo .rastreo { margin-bottom: 0; }
     .pedido-admin .cambio-estado { grid-area: estado; flex-direction: column; align-items: stretch; margin-top: 0; background: var(--panel); border-color: var(--panel); }
     .pedido-admin .cambio-estado select { width: 100%; }
+    .pedido-admin .estado-cerrado { grid-area: estado; margin-top: 0; padding: 24px; background: var(--estado-fondo); border-color: var(--estado-fondo); }
     .pedido-admin-cliente { grid-area: cliente; }
     .pedido-admin-productos { grid-area: productos; }
     .pedido-admin-productos .lineas-pedido { margin-top: 12px; }
@@ -976,6 +993,8 @@ textarea { resize: vertical; }
     .presentacion-cifras li { padding-inline: 16px; }
 }
 @media (max-width: 850px) {
+    /* Apilado, el texto va arriba: la imagen cubre todo y aparece desde arriba, con el naranjo detrás del maestro */
+    .presentacion::before { inset: 0; background-position: right bottom; -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / .15), #000 65%); mask-image: linear-gradient(to bottom, rgb(0 0 0 / .15), #000 65%); }
     .presentacion-interior { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; min-height: 0; }
     .presentacion-texto { padding-block: 32px 8px; }
     /* Apilado: el corte de las piernas cae justo sobre la línea base de la regla (18px). */
@@ -1113,6 +1132,10 @@ textarea { resize: vertical; }
     from { opacity: 0; }
     to { opacity: 1; }
 }
+@keyframes cerrar-candado {
+    from { transform: translateY(-4px); }
+    to { transform: translateY(0); }
+}
 @media (prefers-reduced-motion: no-preference) {
     .movimiento-activo .cabecera-catalogo::after { transform-origin: left; animation: desplegar-regla var(--entrada) both; }
     .movimiento-activo .cabecera-catalogo h1 { animation: entrada-titulo var(--entrada) both; }
@@ -1129,6 +1152,8 @@ textarea { resize: vertical; }
     .movimiento-activo .actual .rastreo-marca::before { animation: anillo-actual 700ms cubic-bezier(.16, 1, .3, 1) calc(var(--paso) * 90ms + 260ms) both; }
     .movimiento-activo .actual .rastreo-nombre { animation: entrada-resumen 200ms ease-out calc(var(--paso) * 90ms + 120ms) both; }
     .movimiento-activo .rastreo-cancelado { animation: entrada-resumen 200ms ease-out both; }
+    /* El candado del pedido cerrado baja su arco y se cierra una sola vez */
+    .movimiento-activo .candado-arco { animation: cerrar-candado 420ms cubic-bezier(.16, 1, .3, 1) 260ms both; }
     .movimiento-activo .panel-ayuda img { animation: subir-maestro var(--entrada) 160ms both; }
 }
 @media (prefers-reduced-motion: reduce) {
